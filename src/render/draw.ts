@@ -264,24 +264,25 @@ function drawCustomer(ctx: CanvasRenderingContext2D, c: Customer, layout: PlayLa
   ctx.stroke();
   ctx.restore();
 
-  const barH = 14;
-  const barW = Math.min(slot.w - 14, 140);
+  const barH = 15;
+  const barW = Math.min(slot.w - 12, 148);
   const barX = slot.x + (slot.w - barW) / 2 + ox;
   const barY = slot.y + 7 + oy;
-  ctx.fillStyle = "rgba(12, 10, 8, 0.82)";
+  const ratio = clamp01(c.patience / c.patienceMax);
+  const barColor = ratio > 0.55 ? "#4caf5a" : ratio > 0.32 ? "#e3b23c" : "#e05228";
+  const barEdge = ratio > 0.55 ? "rgba(76,175,90,0.7)" : ratio > 0.32 ? "rgba(227,178,60,0.85)" : "rgba(224,82,40,0.95)";
+  ctx.fillStyle = "rgba(12, 10, 8, 0.88)";
   roundRect(ctx, barX, barY, barW, barH, 7);
   ctx.fill();
-  ctx.strokeStyle = "rgba(247, 236, 212, 0.55)";
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = barEdge;
+  ctx.lineWidth = ratio > 0.32 ? 2 : 2.6;
   roundRect(ctx, barX, barY, barW, barH, 7);
   ctx.stroke();
-  const ratio = clamp01(c.patience / c.patienceMax);
   const fillW = Math.max(5, (barW - 4) * ratio);
-  const barColor = ratio > 0.5 ? "#4caf5a" : ratio > 0.28 ? "#e3b23c" : "#e05228";
   ctx.fillStyle = barColor;
   roundRect(ctx, barX + 2, barY + 2, fillW, barH - 4, 5);
   ctx.fill();
-  ctx.fillStyle = "rgba(255,255,255,0.22)";
+  ctx.fillStyle = "rgba(255,255,255,0.24)";
   roundRect(ctx, barX + 2, barY + 2, fillW, Math.max(2, (barH - 4) * 0.35), 4);
   ctx.fill();
 
@@ -294,12 +295,29 @@ function drawCustomer(ctx: CanvasRenderingContext2D, c: Customer, layout: PlayLa
   const bubbleH = Math.min(88, Math.max(58, slot.h * 0.4));
   const bx = slot.x + 4 + ox;
   const by = slot.y + 32 + oy;
+  // Urgência no pedido: borda do balão lê em ~1s (verde → amarelo → vermelho).
+  const urg =
+    c.mood === "rage"
+      ? 0
+      : c.mood === "happy"
+        ? 1
+        : ratio;
+  const urgStroke =
+    urg > 0.55 ? "rgba(76, 175, 90, 0.95)" : urg > 0.32 ? "rgba(227, 178, 60, 0.98)" : "rgba(224, 82, 40, 1)";
+  const urgGlow =
+    urg > 0.55 ? "rgba(76, 175, 90, 0.18)" : urg > 0.32 ? "rgba(227, 178, 60, 0.22)" : "rgba(224, 82, 40, 0.32)";
+  const urgWidth = urg > 0.55 ? 2.5 : urg > 0.32 ? 3.2 : 3.8 + (urg < 0.2 ? Math.sin(t * 10) * 0.6 : 0);
   ctx.fillStyle = c.mood === "rage" ? "#3a241c" : "#2a2218";
   roundRect(ctx, bx, by, bubbleW, bubbleH, 10);
   ctx.fill();
-  ctx.strokeStyle = "rgba(227,178,60,0.35)";
-  ctx.lineWidth = 2;
+  ctx.save();
+  ctx.shadowColor = urgGlow;
+  ctx.shadowBlur = urg > 0.55 ? 0 : urg > 0.32 ? 6 : 12;
+  ctx.strokeStyle = urgStroke;
+  ctx.lineWidth = urgWidth;
+  roundRect(ctx, bx, by, bubbleW, bubbleH, 10);
   ctx.stroke();
+  ctx.restore();
   const need = c.order;
   const icon = Math.min(44, (bubbleW - 8) / Math.max(1, need.length) - 4);
   need.forEach((id, i) => {
