@@ -45,10 +45,17 @@
                 <div id="hud-lives" aria-label="Vidas">❤❤❤❤</div>
               </div>
             </div>
-            <div id="hud-combo" class="combo" hidden></div>
+            <div id="hud-combo" class="combo-meter" hidden>
+              <div class="combo-flame" aria-hidden="true">🔥</div>
+              <div class="combo-stack">
+                <div class="combo-label">COMBO</div>
+                <div class="combo-value" id="hud-combo-val">×2</div>
+              </div>
+              <div class="combo-bar" aria-hidden="true"><div id="hud-combo-fill"></div></div>
+            </div>
+            <div id="hud-goals" class="hud-goals" hidden></div>
           </div>
           <div class="hud-cluster right">
-            
             <button type="button" class="icon-btn" id="btn-speed" tabindex="-1" aria-label="Velocidade">1x</button>
           </div>
           <div class="hud-hand" id="hud-hand" hidden>

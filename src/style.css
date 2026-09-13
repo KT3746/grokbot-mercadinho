@@ -222,12 +222,98 @@ body.play-guard #btn-pause,
   color: var(--gold);
 }
 
-#hud-combo {
-  margin-top: 4px;
-  font-weight: 800;
-  color: #7dff9a;
+#hud-combo,
+.combo-meter {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 5px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(28, 40, 28, 0.95), rgba(14, 18, 14, 0.92));
+  border: 1px solid rgba(125, 255, 154, 0.35);
+  box-shadow: 0 0 12px rgba(125, 255, 154, 0.12);
+}
+
+.combo-meter[hidden] {
+  display: none !important;
+}
+
+.combo-flame {
   font-size: 16px;
+  line-height: 1;
+  filter: drop-shadow(0 0 6px rgba(255, 160, 60, 0.7));
+}
+
+.combo-stack {
+  display: flex;
+  flex-direction: column;
+  min-width: 44px;
+}
+
+.combo-label {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  font-weight: 800;
+  color: #9dffb4;
+  line-height: 1;
+}
+
+.combo-value,
+#hud-combo-val {
+  font-family: var(--font-display);
+  font-size: 18px;
+  line-height: 1.05;
+  color: #7dff9a;
   text-shadow: 0 0 8px rgba(125, 255, 154, 0.45);
+}
+
+.combo-bar {
+  flex: 1;
+  height: 6px;
+  min-width: 36px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  border: 1px solid rgba(125, 255, 154, 0.2);
+}
+
+#hud-combo-fill {
+  height: 100%;
+  width: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2f6b4f, #7dff9a 70%, #e3b23c);
+  box-shadow: 0 0 8px rgba(125, 255, 154, 0.55);
+  transition: width 0.12s linear;
+}
+
+.combo-meter.combo-hot {
+  border-color: rgba(227, 178, 60, 0.65);
+  box-shadow: 0 0 16px rgba(227, 178, 60, 0.28);
+}
+
+.combo-meter.combo-punch {
+  animation: combo-punch 0.22s ease-out;
+}
+
+@keyframes combo-punch {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+.hud-goals {
+  margin-top: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  line-height: 1.25;
+  max-width: 200px;
+}
+
+.hud-goals[hidden] {
+  display: none !important;
 }
 
 #hud-turno {
@@ -564,8 +650,18 @@ h2 {
   #hud-score {
     font-size: 20px;
   }
-  #hud-combo {
-    font-size: 14px;
+  #hud-combo,
+  .combo-meter {
+    padding: 3px 6px 4px;
+    gap: 6px;
+  }
+  .combo-value,
+  #hud-combo-val {
+    font-size: 15px;
+  }
+  .hud-goals {
+    font-size: 10px;
+    max-width: 160px;
   }
   .hud-shop {
     font-size: 20px;
@@ -626,4 +722,164 @@ h2 {
   background: linear-gradient(180deg, #b08a2e 0%, #8a6a20 100%);
   color: #f7ecd4;
   border-color: #3a2a08;
+}
+
+
+/* —— AAA: resumo de turno + tutorial —— */
+.summary-overlay .stars-line,
+.stars-line {
+  font-family: var(--font-display);
+  font-size: clamp(36px, 10vw, 52px);
+  letter-spacing: 0.08em;
+  color: var(--gold);
+  text-shadow: 0 2px 0 #2a1d12, 0 0 22px rgba(227, 178, 60, 0.45);
+  margin: 6px 0 8px;
+  text-align: center;
+}
+
+.goal-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.goal-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(232, 220, 200, 0.06);
+  border: 1px solid rgba(232, 220, 200, 0.12);
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.goal-list li.met {
+  border-color: rgba(125, 255, 154, 0.35);
+  color: #c8f5d4;
+}
+
+.goal-list li.miss {
+  border-color: rgba(196, 73, 29, 0.35);
+  color: var(--muted);
+}
+
+.goal-list .g-mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 800;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.goal-list li.met .g-mark {
+  background: rgba(47, 107, 79, 0.85);
+  color: #e8ffee;
+}
+
+.goal-list li.miss .g-mark {
+  background: rgba(138, 58, 72, 0.75);
+  color: #ffd0d0;
+}
+
+.tutorial-overlay {
+  align-items: end;
+  place-items: end center;
+  padding-bottom: calc(28px + var(--safe-b));
+}
+
+.tutorial-overlay .tutorial-panel {
+  width: min(440px, 100%);
+}
+
+.tutorial-tip {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(227, 178, 60, 0.1);
+  border: 1px solid rgba(227, 178, 60, 0.28);
+  color: var(--cream);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.tutorial-dim {
+  display: none;
+}
+
+/* Spotlights leves no tutorial (mobile-friendly). */
+body[data-view="tutorial"] #hud {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.tutorial-overlay[data-spot="speed"] ~ #hud,
+/* HUD is sibling under #app, not of overlay — use body class instead */
+body.tutor-speed #btn-speed {
+  outline: 3px solid var(--gold);
+  box-shadow: 0 0 0 6px rgba(227, 178, 60, 0.25), 0 0 22px rgba(227, 178, 60, 0.45);
+  z-index: 20;
+  position: relative;
+}
+
+.toast-stack .toast {
+  font-size: 15px;
+  padding: 8px 16px;
+}
+
+.summary-panel .lede {
+  text-align: center;
+}
+
+@media (max-width: 520px) {
+  .tutorial-overlay .btn.primary.cta,
+  .summary-overlay .btn.primary.cta {
+    min-height: 56px;
+    font-size: 17px;
+  }
+  .goal-list li {
+    font-size: 14px;
+    padding: 12px;
+  }
+}
+
+body.tutor-speed #hud {
+  opacity: 1 !important;
+  pointer-events: none;
+}
+body.tutor-speed #btn-speed {
+  outline: 3px solid var(--gold);
+  box-shadow: 0 0 0 6px rgba(227, 178, 60, 0.28), 0 0 24px rgba(227, 178, 60, 0.5);
+  z-index: 20;
+  position: relative;
+  pointer-events: none;
+  animation: tutor-pulse 1.1s ease-in-out infinite;
+}
+@keyframes tutor-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+body.tutor-shelf #scene::after,
+body.tutor-lookalike #scene::after {
+  content: "";
+  position: fixed;
+  left: 8%;
+  right: 8%;
+  bottom: 4%;
+  height: 28%;
+  border: 2px dashed rgba(227, 178, 60, 0.55);
+  border-radius: 18px;
+  pointer-events: none;
+  z-index: 5;
+  box-shadow: 0 0 0 9999px rgba(8, 6, 4, 0.28);
+}
+body.tutor-lookalike #scene::after {
+  border-color: rgba(125, 255, 154, 0.5);
 }

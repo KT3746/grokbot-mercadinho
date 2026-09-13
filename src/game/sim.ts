@@ -10,7 +10,7 @@ import {
   shuffleInPlace,
 } from "../config";
 import { ARCHETYPES, PRODUCT_BY_ID, SHIFT_LINES, TOASTS, productsUnlocked } from "../data/catalog";
-import type { ChaosKind, CustomerMood, ProductId } from "../types";
+import type { ChaosKind, CustomerMood, ProductId, TurnGoal } from "../types";
 
 export type Customer = {
   id: number;
@@ -46,13 +46,21 @@ export type Particle = {
   kind: "float" | "spark" | "star";
 };
 
+export type TurnSummary = {
+  turno: number;
+  stars: number;
+  goals: TurnGoal[];
+  nextTurno: number;
+};
+
 export type SimEvent =
   | { type: "spawn"; name: string }
   | { type: "pickup"; id: ProductId }
   | { type: "deliver"; score: number; combo: number; done: boolean; name: string; customerId: number }
-  | { type: "wrong"; name: string }
+  | { type: "wrong"; name: string; mixup?: string }
   | { type: "rage"; name: string }
   | { type: "shift"; turno: number }
+  | { type: "turnEnd"; summary: TurnSummary }
   | { type: "chaos"; kind: ChaosKind }
   | { type: "over" }
   | { type: "blocked" };
@@ -86,9 +94,63 @@ export type Run = {
   particles: Particle[];
   tutorial: boolean;
   lockQueue: boolean;
+  /** Contadores do turno atual (metas). */
+  turnServed: number;
+  turnWrong: number;
+  turnRage: number;
+  turnMaxCombo: number;
+  goals: TurnGoal[];
+  runStars: number;
+  awaitingSummary: TurnSummary | null;
+  /** Punch visual breve após entrega certa. */
+  punch: number;
 };
 
 const easyFirst: ProductId[] = ["pao", "leite", "biscoito", "macarrao"];
+
+/** Metas justas no início, escalam com carinho. */
+export function goalsForTurn(turno: number): TurnGoal[] {
+  const serveTarget = turno <= 1 ? 2 : turno === 2 ? 3 : Math.min(4, 2 + turno);
+  const comboTarget = turno <= 1 ? 2 : turno === 2 ? 3 : Math.min(5, 2 + turno);
+  return [
+    {
+      kind: "serve",
+      label: `Atender ${serveTarget} clientes`,
+      target: serveTarget,
+      current: 0,
+      met: false,
+    },
+    {
+      kind: "combo",
+      label: `Chegar em combo ×${comboTarget}`,
+      target: comboTarget,
+      current: 0,
+      met: false,
+    },
+    {
+      kind: "clean",
+      label: turno <= 2 ? "Não perder vida neste turno" : "Sem clientes furiosos",
+      target: 0,
+      current: 0,
+      met: true,
+    },
+  ];
+}
+
+function refreshGoals(run: Run): void {
+  for (const g of run.goals) {
+    if (g.kind === "serve") {
+      g.current = run.turnServed;
+      g.met = run.turnServed >= g.target;
+    } else if (g.kind === "combo") {
+      g.current = run.turnMaxCombo;
+      g.met = run.turnMaxCombo >= g.target;
+    } else {
+      g.current = run.turnRage;
+      g.met = run.turnRage <= 0;
+    }
+  }
+}
 
 export function createRun(): Run {
   const unlocked = productsUnlocked(1).map((p) => p.id);
@@ -121,6 +183,14 @@ export function createRun(): Run {
     particles: [],
     tutorial: true,
     lockQueue: false,
+    turnServed: 0,
+    turnWrong: 0,
+    turnRage: 0,
+    turnMaxCombo: 0,
+    goals: goalsForTurn(1),
+    runStars: 0,
+    awaitingSummary: null,
+    punch: 0,
   };
   return run;
 }
@@ -212,13 +282,13 @@ export function spawnCustomer(run: Run): SimEvent | null {
 }
 
 export function dropHolding(run: Run): boolean {
-  if (run.over || run.tutorial || !run.holding) return false;
+  if (run.over || run.tutorial || run.awaitingSummary || !run.holding) return false;
   run.holding = null;
   return true;
 }
 
 export function tryPickup(run: Run, id: ProductId): SimEvent | null {
-  if (run.over || run.tutorial) return null;
+  if (run.over || run.tutorial || run.awaitingSummary) return null;
   const unlocked = productsUnlocked(run.turno).some((p) => p.id === id);
   if (!unlocked) return null;
   run.holding = id;
@@ -229,23 +299,35 @@ export function customerById(run: Run, customerId: number): Customer | undefined
   return run.customers.find((x) => x.id === customerId);
 }
 
+function mixupLabel(given: ProductId, want: ProductId): string | undefined {
+  const g = PRODUCT_BY_ID[given];
+  const w = PRODUCT_BY_ID[want];
+  if (!g || !w) return undefined;
+  if (g.lookalike === want || w.lookalike === given) {
+    return `${g.short} ≠ ${w.short}`;
+  }
+  return undefined;
+}
+
 export function tryDeliver(run: Run, customerId: number, at?: { x: number; y: number }): SimEvent | null {
-  if (run.over || run.tutorial) return null;
+  if (run.over || run.tutorial || run.awaitingSummary) return null;
   const c = customerById(run, customerId);
   if (!c || (c.mood !== "wait" && c.mood !== "enter")) return null;
   if (!run.holding) return null;
   const want = c.order[0];
   const arch = ARCHETYPES.find((a) => a.id === c.arch) ?? ARCHETYPES[0]!;
   if (run.holding !== want) {
+    const mixup = want ? mixupLabel(run.holding, want) : undefined;
     run.wrong++;
+    run.turnWrong++;
     run.combo = 0;
     run.comboT = 0;
     c.patience = Math.max(0.4, c.patience - c.patienceMax * 0.14);
     say(c, arch.wrong);
     run.holding = null;
-    run.shake = Math.max(run.shake, 10);
-    burst(run, at?.x ?? 0.5, at?.y ?? 0.28, "#c4491d", 14);
-    return { type: "wrong", name: arch.name };
+    run.shake = Math.max(run.shake, 12);
+    burst(run, at?.x ?? 0.5, at?.y ?? 0.28, "#c4491d", 8);
+    return { type: "wrong", name: arch.name, mixup };
   }
   c.order.shift();
   c.got.push(run.holding);
@@ -253,12 +335,14 @@ export function tryDeliver(run: Run, customerId: number, at?: { x: number; y: nu
   const ratio = c.patience / c.patienceMax;
   run.combo = Math.min(MAX_COMBO, run.combo + 1);
   run.comboT = COMBO_WINDOW;
+  run.turnMaxCombo = Math.max(run.turnMaxCombo, run.combo);
   const base = 80 + Math.round(ratio * 70) + (c.special ? 40 : 0);
   const gain = base + run.combo * 18;
   run.score += gain;
   const done = c.order.length === 0;
   if (done) {
     run.served++;
+    run.turnServed++;
     run.score += 40 + (c.special ? 80 : 0);
     c.mood = "happy";
     c.anim = 0;
@@ -266,8 +350,11 @@ export function tryDeliver(run: Run, customerId: number, at?: { x: number; y: nu
   } else {
     say(c, ["Ainda falta um.", "Isso. O próximo.", "Segue a lista."]);
   }
-  burst(run, at?.x ?? 0.5, at?.y ?? 0.28, c.special ? "#e3b23c" : "#4caf5a", 18);
-  if (run.combo >= 3) burst(run, at?.x ?? 0.5, (at?.y ?? 0.28) - 0.02, "#f6e27a", 8);
+  run.punch = Math.max(run.punch, 0.085);
+  // Poucos sparks — sem spam de partículas.
+  burst(run, at?.x ?? 0.5, at?.y ?? 0.28, c.special ? "#e3b23c" : "#4caf5a", run.combo >= 4 ? 10 : 6);
+  if (run.combo >= 3) burst(run, at?.x ?? 0.5, (at?.y ?? 0.28) - 0.02, "#f6e27a", 4);
+  refreshGoals(run);
   if (run.hint && run.t > 1.2) {
     run.hint = "Isso. Mantém o ritmo.";
     run.hintT = 2.4;
@@ -276,18 +363,19 @@ export function tryDeliver(run: Run, customerId: number, at?: { x: number; y: nu
 }
 
 function burst(run: Run, x: number, y: number, color: string, n: number): void {
-  for (let i = 0; i < n; i++) {
-    const life = 0.5 + Math.random() * 0.4;
+  const cap = Math.min(n, 12);
+  for (let i = 0; i < cap; i++) {
+    const life = 0.42 + Math.random() * 0.28;
     run.particles.push({
       x,
       y,
-      vx: (Math.random() - 0.5) * 0.48,
-      vy: -0.22 - Math.random() * 0.34,
+      vx: (Math.random() - 0.5) * 0.42,
+      vy: -0.2 - Math.random() * 0.28,
       life,
       max: life,
       color,
-      size: 3.5 + Math.random() * 5.5,
-      kind: Math.random() < 0.42 ? "star" : "spark",
+      size: 3 + Math.random() * 4.5,
+      kind: Math.random() < 0.35 ? "star" : "spark",
     });
   }
 }
@@ -298,8 +386,8 @@ export function floatText(run: Run, x: number, y: number, text: string, color: s
     y,
     vx: 0,
     vy: -0.08,
-    life: 1.15,
-    max: 1.15,
+    life: 1.05,
+    max: 1.05,
     text,
     color,
     size: 22,
@@ -327,20 +415,49 @@ function endChaos(run: Run): void {
   run.chaos = null;
 }
 
-function maybeShift(run: Run): SimEvent | null {
-  if (run.turno >= 4) return null;
-  if (run.turnoT < TURNO_SECS) return null;
-  run.turno++;
+
+/** Avança o turno depois do overlay de estrelas. */
+export function applyShift(run: Run): SimEvent {
+  const next = Math.min(4, run.turno + 1);
+  run.turno = next;
   run.turnoT = 0;
+  run.turnServed = 0;
+  run.turnWrong = 0;
+  run.turnRage = 0;
+  run.turnMaxCombo = 0;
+  run.goals = goalsForTurn(run.turno);
   run.shelfOrder = productsUnlocked(run.turno).map((p) => p.id);
   run.banner = SHIFT_LINES[Math.min(SHIFT_LINES.length - 1, run.turno - 1)] ?? `Turno ${run.turno}`;
   run.bannerT = 2.4;
   run.spawnIn = Math.min(run.spawnIn, 2.8);
+  run.awaitingSummary = null;
   return { type: "shift", turno: run.turno };
+}
+
+function maybeTurnEnd(run: Run): SimEvent | null {
+  if (run.turno >= 4) return null;
+  if (run.turnoT < TURNO_SECS) return null;
+  if (run.awaitingSummary) return null;
+  refreshGoals(run);
+  const met = run.goals.filter((g) => g.met).length;
+  const stars = clamp(met, 0, 3);
+  // Sobreviveu ao turno: 0–3 estrelas honestas (sem forçar mínimo).
+  const summary: TurnSummary = {
+    turno: run.turno,
+    stars,
+    goals: run.goals.map((g) => ({ ...g })),
+    nextTurno: run.turno + 1,
+  };
+  run.runStars += stars;
+  run.awaitingSummary = summary;
+  // Congela o relógio do turno até o jogador fechar o resumo.
+  run.turnoT = TURNO_SECS;
+  return { type: "turnEnd", summary };
 }
 
 function decayFx(run: Run, dt: number): void {
   run.shake = Math.max(0, run.shake - dt * 28);
+  run.punch = Math.max(0, run.punch - dt);
   for (const p of run.particles) {
     p.life -= dt;
     p.x += p.vx * dt;
@@ -353,7 +470,7 @@ function decayFx(run: Run, dt: number): void {
 export function tick(run: Run, dt: number): SimEvent[] {
   const events: SimEvent[] = [];
   if (run.over) return events;
-  if (run.tutorial || run.lockQueue) {
+  if (run.tutorial || run.lockQueue || run.awaitingSummary) {
     decayFx(run, dt);
     return events;
   }
@@ -361,6 +478,7 @@ export function tick(run: Run, dt: number): SimEvent[] {
   run.t += simDt;
   run.turnoT += simDt;
   run.shake = Math.max(0, run.shake - dt * 28);
+  run.punch = Math.max(0, run.punch - dt);
   if (run.comboT > 0) {
     run.comboT -= dt;
     if (run.comboT <= 0) run.combo = 0;
@@ -384,15 +502,19 @@ export function tick(run: Run, dt: number): SimEvent[] {
   } else if (run.turno >= 3) {
     run.chaosIn -= simDt;
     if (run.chaosIn <= 0) {
-      const kinds: ChaosKind[] = run.turno >= 4 ? ["apagao", "liquidacao", "gato", "rush"] : ["liquidacao", "gato"];
+      const kinds: ChaosKind[] =
+        run.turno >= 4 ? ["apagao", "liquidacao", "gato", "rush"] : ["liquidacao", "gato"];
       const kind = pick(kinds);
       startChaos(run, kind);
       events.push({ type: "chaos", kind });
     }
   }
 
-  const shift = maybeShift(run);
-  if (shift) events.push(shift);
+  const turnEnd = maybeTurnEnd(run);
+  if (turnEnd) {
+    events.push(turnEnd);
+    return events;
+  }
 
   run.spawnIn -= simDt;
   const holdFirst = run.turno === 1 && run.served < 1 && run.customers.length >= 1;
@@ -418,8 +540,10 @@ export function tick(run: Run, dt: number): SimEvent[] {
         c.mood = "rage";
         c.anim = 0;
         run.lives -= 1;
+        run.turnRage += 1;
         run.combo = 0;
         run.shake = Math.max(run.shake, 11);
+        refreshGoals(run);
         const arch = ARCHETYPES.find((a) => a.id === c.arch) ?? ARCHETYPES[0]!;
         say(c, arch.rage);
         events.push({ type: "rage", name: arch.name });
@@ -458,3 +582,4 @@ export function toastFor(kind: ChaosKind): string {
 export function livesGlyph(n: number): string {
   return "❤".repeat(Math.max(0, n)) + "♡".repeat(Math.max(0, START_LIVES - n));
 }
+

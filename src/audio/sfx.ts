@@ -98,11 +98,19 @@ export class Sfx {
   }
 
   cash(): void {
-    this.noiseBurst(0.05, 0.04);
-    this.blip(523, 0.06, "square", 0.055);
-    this.blip(659, 0.08, "triangle", 0.05, 0.04);
-    this.blip(784, 0.1, "triangle", 0.06, 0.08);
-    this.blip(1046, 0.14, "sine", 0.04, 0.12);
+    // Punch curto + ding — sem drone.
+    this.noiseBurst(0.035, 0.055);
+    this.blip(180, 0.045, "square", 0.05);
+    this.blip(523, 0.055, "square", 0.06, 0.02);
+    this.blip(784, 0.09, "triangle", 0.055, 0.055);
+    this.blip(1175, 0.11, "sine", 0.04, 0.09);
+  }
+
+  /** Impacto curto na entrega certa (hitstop sonoro). */
+  punch(): void {
+    this.noiseBurst(0.028, 0.06);
+    this.blip(140, 0.04, "square", 0.055);
+    this.blip(420, 0.05, "triangle", 0.04, 0.015);
   }
 
   combo(n: number): void {
