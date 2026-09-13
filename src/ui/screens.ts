@@ -1,4 +1,6 @@
 import { GAME_TITLE } from "../config";
+import type { TurnGoal } from "../types";
+import type { TurnSummary } from "../game/sim";
 
 export type UiAction =
   | { type: "play" }
@@ -11,7 +13,10 @@ export type UiAction =
   | { type: "retry" }
   | { type: "mute" }
   | { type: "menu" }
-  | { type: "begin" };
+  | { type: "begin" }
+  | { type: "tutorialNext" }
+  | { type: "tutorialSkip" }
+  | { type: "nextTurn" };
 
 export class Screens {
   root: HTMLElement;
@@ -34,7 +39,9 @@ export class Screens {
     this.root.innerHTML = html;
   }
 
-  title(muted: boolean, best: number): void {
+  title(muted: boolean, best: number, bestStars = 0): void {
+    const starsLine =
+      bestStars > 0 ? `<p class="best">Melhor estrelas: <b>${"★".repeat(Math.min(3, bestStars))}${bestStars > 3 ? ` (${bestStars})` : ""}</b></p>` : "";
     this.set(`
       <section class="screen title-screen">
         <div class="screen-body">
@@ -44,6 +51,7 @@ export class Screens {
               <h1>${GAME_TITLE}</h1>
               <p class="lede">Fila na porta. Produto certo na mão. Entrega antes da paciência estourar.</p>
               ${best > 0 ? `<p class="best">Recorde local: <b>${best}</b></p>` : ""}
+              ${starsLine}
             </div>
             <button type="button" class="icon-btn mute-btn" data-act="mute" aria-label="${muted ? "Ativar som" : "Mudo"}">${muted ? "Som off" : "Som"}</button>
           </div>
@@ -69,6 +77,7 @@ export class Screens {
             <p><b>2.</b> Toque no produto na prateleira — ou arraste até a pessoa.</p>
             <p><b>3.</b> Toque no cliente para entregar. Errar gasta paciência e zera o combo.</p>
             <p><b>4.</b> Quatro clientes furiosos encerram o expediente. O ritmo sobe a cada turno.</p>
+            <p><b>Metas:</b> cada turno tem 3 objetivos. Cumprir rende ★ estrelas no resumo.</p>
             <p><b>Celular:</b> só o dedo. Toque vazio ou <b>Soltar</b> larga o item. Use <b>1x/2x/3x</b> no topo pra acelerar.</p>
             <p><b>Computador:</b> clique, arraste, ou teclas <b>1–8</b> (e Q W E R) nos produtos. <b>3</b> pega o terceiro item, não pausa. ← → escolhe o cliente, <b>Espaço</b> entrega no cliente marcado, <b>Esc</b> solta o item (ou pausa se a mão estiver vazia), botão direito também solta, M muda o som. O botão <b>1x/2x/3x</b> acelera o expediente.</p>
             <p>Olho no sósia: <b>Refri</b> não é <b>Refri Zero</b>. <b>Detergente</b> não é <b>Amaciante</b>.</p>
@@ -98,25 +107,65 @@ export class Screens {
       </section>`);
   }
 
-  intro(touch: boolean): void {
-    const grab = touch
-      ? "Toque no produto na prateleira — ou arraste até a pessoa."
-      : "Clique no produto na prateleira — ou arraste até a pessoa.";
-    const give = touch
-      ? "Toque no cliente para entregar. O pedido está no balão."
-      : "Clique no cliente para entregar. O pedido está no balão.";
+  /** Tutorial guiado de 3 passos — só na primeira partida. */
+  tutorial(step: number, touch: boolean): void {
+    const steps = [
+      {
+        title: "A prateleira",
+        body: touch
+          ? "Toque num produto na prateleira embaixo — ou arraste até o cliente."
+          : "Clique num produto na prateleira — ou arraste até o cliente. Teclas 1–8 também pegam.",
+        tip: "O pedido aparece no balão da pessoa.",
+        spot: "shelf",
+      },
+      {
+        title: "Cuidado com sósias",
+        body: "Refri não é Zero. Detergente não é Amaciante. O rótulo importa.",
+        tip: "Errar zera o combo e gasta paciência.",
+        spot: "lookalike",
+      },
+      {
+        title: "Acelerador 1x / 2x / 3x",
+        body: "No canto do HUD, o botão de velocidade acelera o expediente quando você estiver afiado.",
+        tip: "Comece em 1x. Depois acelera.",
+        spot: "speed",
+      },
+    ];
+    const s = steps[Math.max(0, Math.min(2, step))]!;
     this.set(`
-      <section class="overlay intro-overlay">
-        <div class="panel">
-          <h2>${GAME_TITLE}</h2>
-          <p class="lede">A fila só anda quando você fechar este recado. Ninguém perde vida enquanto lê.</p>
-          <div class="sheet">
-            <p><b>1.</b> ${grab}</p>
-            <p><b>2.</b> ${give}</p>
-            <p><b>3.</b> Quatro clientes furiosos encerram o expediente. O ritmo sobe depois.</p>
-          </div>
+      <section class="overlay tutorial-overlay" data-spot="${s.spot}">
+        <div class="tutorial-dim" aria-hidden="true"></div>
+        <div class="panel tutorial-panel premium-panel">
+          <div class="eyebrow">Tour rápido · ${step + 1}/3</div>
+          <h2>${s.title}</h2>
+          <p class="lede">${s.body}</p>
+          <p class="tutorial-tip">${s.tip}</p>
           <div class="stack">
-            <button type="button" class="btn primary cta" data-act="begin">Entendi — abrir o caixa</button>
+            <button type="button" class="btn primary cta" data-act="tutorialNext">${step >= 2 ? "Abrir o caixa" : "Próximo"}</button>
+            <button type="button" class="btn ghost" data-act="tutorialSkip">Pular tutorial</button>
+          </div>
+        </div>
+      </section>`);
+  }
+
+  turnSummary(summary: TurnSummary): void {
+    const stars = "★".repeat(summary.stars) + "☆".repeat(Math.max(0, 3 - summary.stars));
+    const goalsHtml = summary.goals
+      .map(
+        (g: TurnGoal) =>
+          `<li class="${g.met ? "met" : "miss"}"><span class="g-mark">${g.met ? "✓" : "✗"}</span> ${g.label}</li>`,
+      )
+      .join("");
+    const nextLabel = summary.nextTurno >= 4 ? "Hora extra" : `Turno ${summary.nextTurno}`;
+    this.set(`
+      <section class="overlay summary-overlay">
+        <div class="panel premium-panel summary-panel">
+          <div class="eyebrow">Fim do turno ${summary.turno}</div>
+          <h2 class="stars-line" aria-label="${summary.stars} estrelas">${stars}</h2>
+          <p class="lede">${summary.stars === 3 ? "Expediente impecável." : summary.stars === 2 ? "Bom ritmo na esquina." : summary.stars === 1 ? "Deu pra manter a loja." : "O turno passou raspando."}</p>
+          <ul class="goal-list">${goalsHtml}</ul>
+          <div class="stack">
+            <button type="button" class="btn primary cta" data-act="nextTurn">Seguir · ${nextLabel}</button>
           </div>
         </div>
       </section>`);
@@ -138,7 +187,16 @@ export class Screens {
       </section>`);
   }
 
-  over(score: number, served: number, turno: number, best: number, isBest: boolean): void {
+  over(
+    score: number,
+    served: number,
+    turno: number,
+    best: number,
+    isBest: boolean,
+    runStars: number,
+    bestStars: number,
+  ): void {
+    const starGlyph = runStars > 0 ? `<p><b>Estrelas:</b> ${"★".repeat(Math.min(runStars, 12))}${runStars > 12 ? ` (${runStars})` : ""}</p>` : "";
     this.set(`
       <section class="screen solid over-screen">
         <div class="screen-body">
@@ -148,7 +206,9 @@ export class Screens {
             <p><b>Pontos:</b> ${score}</p>
             <p><b>Clientes atendidos:</b> ${served}</p>
             <p><b>Turno:</b> ${turno === 4 ? "hora extra" : turno}</p>
+            ${starGlyph}
             <p><b>Recorde:</b> ${best}</p>
+            ${bestStars > 0 ? `<p><b>Melhor estrelas:</b> ${bestStars}</p>` : ""}
           </div>
         </div>
         <div class="screen-foot col">

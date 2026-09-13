@@ -7,6 +7,8 @@ const empty = (): SaveData => ({
   muted: false,
   seenHow: false,
   plays: 0,
+  bestStars: 0,
+  totalStars: 0,
 });
 
 export function loadSave(): SaveData {
@@ -20,6 +22,8 @@ export function loadSave(): SaveData {
       muted: parsed.muted === true,
       seenHow: parsed.seenHow === true,
       plays: typeof parsed.plays === "number" ? parsed.plays : 0,
+      bestStars: typeof parsed.bestStars === "number" ? parsed.bestStars : 0,
+      totalStars: typeof parsed.totalStars === "number" ? parsed.totalStars : 0,
     };
   } catch {
     return empty();
