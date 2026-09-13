@@ -1,5 +1,5 @@
 import { GAME_TITLE } from "../config";
-import type { TurnGoal } from "../types";
+import type { RunRecord, TurnGoal } from "../types";
 import type { TurnSummary } from "../game/sim";
 
 export type UiAction =
@@ -35,11 +35,50 @@ export class Screens {
     });
   }
 
+
+  private diaryHtml(history: RunRecord[]): string {
+    if (!history.length) return "";
+    const rows = history
+      .slice(0, 5)
+      .map((r, i) => {
+        const turnoLabel = r.turno >= 4 ? "hora extra" : `turno ${r.turno}`;
+        const stars = r.stars > 0 ? "★".repeat(Math.min(r.stars, 9)) + (r.stars > 9 ? ` (${r.stars})` : "") : "—";
+        let when = "";
+        if (typeof r.at === "number" && r.at > 0) {
+          try {
+            when = new Date(r.at).toLocaleString("pt-BR", {
+              timeZone: "America/Sao_Paulo",
+              day: "2-digit",
+              month: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+          } catch {
+            when = "";
+          }
+        }
+        return `<li class="diary-row">
+            <span class="diary-rank">${i + 1}</span>
+            <span class="diary-main"><b>${r.score}</b> pts · ${turnoLabel}</span>
+            <span class="diary-stars" aria-label="${r.stars} estrelas">${stars}</span>
+            ${when ? `<span class="diary-when">${when}</span>` : ""}
+          </li>`;
+      })
+      .join("");
+    return `<div class="diary premium-diary" aria-label="Diário da esquina">
+        <div class="diary-head">
+          <span class="eyebrow">Diário da esquina</span>
+          <span class="diary-sub">Últimos expedientes</span>
+        </div>
+        <ol class="diary-list">${rows}</ol>
+      </div>`;
+  }
+
   private set(html: string): void {
     this.root.innerHTML = html;
   }
 
-  title(muted: boolean, best: number, bestStars = 0): void {
+  title(muted: boolean, best: number, bestStars = 0, history: RunRecord[] = []): void {
     const starsLine =
       bestStars > 0 ? `<p class="best">Melhor estrelas: <b>${"★".repeat(Math.min(3, bestStars))}${bestStars > 3 ? ` (${bestStars})` : ""}</b></p>` : "";
     this.set(`
@@ -55,6 +94,7 @@ export class Screens {
             </div>
             <button type="button" class="icon-btn mute-btn" data-act="mute" aria-label="${muted ? "Ativar som" : "Mudo"}">${muted ? "Som off" : "Som"}</button>
           </div>
+          ${this.diaryHtml(history)}
         </div>
         <div class="screen-foot col">
           <button type="button" class="btn primary cta" data-act="play">Abrir a loja</button>
@@ -195,6 +235,7 @@ export class Screens {
     isBest: boolean,
     runStars: number,
     bestStars: number,
+    history: RunRecord[] = [],
   ): void {
     const starGlyph = runStars > 0 ? `<p><b>Estrelas:</b> ${"★".repeat(Math.min(runStars, 12))}${runStars > 12 ? ` (${runStars})` : ""}</p>` : "";
     this.set(`
@@ -210,6 +251,7 @@ export class Screens {
             <p><b>Recorde:</b> ${best}</p>
             ${bestStars > 0 ? `<p><b>Melhor estrelas:</b> ${bestStars}</p>` : ""}
           </div>
+          ${this.diaryHtml(history)}
         </div>
         <div class="screen-foot col">
           <button type="button" class="btn primary cta" data-act="retry">Outro expediente</button>

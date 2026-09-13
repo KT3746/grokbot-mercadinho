@@ -4,6 +4,15 @@ export class Sfx {
   muted = false;
   unlocked = false;
 
+  /** Camada base (expediente) — plucks suaves, sem zumbido contínuo. */
+  private bedOn = false;
+  private bedGain: GainNode | null = null;
+  private rushGain: GainNode | null = null;
+  private bedTimer: number | null = null;
+  private rushTimer: number | null = null;
+  private pressure = 0;
+  private step = 0;
+
   async unlock(): Promise<void> {
     if (this.unlocked && this.ctx?.state === "running") return;
     if (!this.ctx) this.build();
@@ -18,12 +27,15 @@ export class Sfx {
     this.master = this.ctx.createGain();
     this.master.gain.value = this.muted ? 0 : 0.3;
     this.master.connect(this.ctx.destination);
-    // Sem zumbido/ambiente contínuo — só efeitos curtos nas ações.
+    // Sem zumbido/ambiente contínuo — só efeitos curtos nas ações + bed opcional no play.
   }
 
   setMuted(muted: boolean): void {
     this.muted = muted;
     if (this.master) this.master.gain.value = muted ? 0 : 0.3;
+    // Mute zera o master; timers podem continuar sem audível. Se mutado, pausa timers pra economizar.
+    if (muted) this.pauseBedTimers();
+    else if (this.bedOn) this.resumeBedTimers();
   }
 
   toggleMute(): boolean {
@@ -155,5 +167,147 @@ export class Sfx {
   click(): void {
     this.blip(820, 0.035, "square", 0.03);
     this.blip(1100, 0.03, "triangle", 0.018, 0.015);
+  }
+
+  // ——— Música em camadas (só no play; respeita mute) ———
+
+  /** Inicia bed suave no expediente. Sem som no título. */
+  startBed(): void {
+    if (!this.ctx) this.build();
+    if (!this.ctx || !this.master) return;
+    if (this.bedOn) return;
+    this.bedOn = true;
+    this.step = 0;
+    this.pressure = 0;
+
+    this.bedGain = this.ctx.createGain();
+    this.bedGain.gain.value = 0.0001;
+    this.bedGain.connect(this.master);
+
+    this.rushGain = this.ctx.createGain();
+    this.rushGain.gain.value = 0.0001;
+    this.rushGain.connect(this.master);
+
+    const now = this.ctx.currentTime;
+    this.bedGain.gain.exponentialRampToValueAtTime(0.085, now + 0.6);
+
+    if (!this.muted) this.resumeBedTimers();
+  }
+
+  /** Para tudo — título / game-over / sair. */
+  stopBed(): void {
+    this.bedOn = false;
+    this.pauseBedTimers();
+    const ctx = this.ctx;
+    if (ctx && this.bedGain) {
+      try {
+        this.bedGain.gain.cancelScheduledValues(ctx.currentTime);
+        this.bedGain.gain.setValueAtTime(Math.max(0.0001, this.bedGain.gain.value), ctx.currentTime);
+        this.bedGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.25);
+      } catch {
+        /* ignore */
+      }
+    }
+    if (ctx && this.rushGain) {
+      try {
+        this.rushGain.gain.cancelScheduledValues(ctx.currentTime);
+        this.rushGain.gain.setValueAtTime(Math.max(0.0001, this.rushGain.gain.value), ctx.currentTime);
+        this.rushGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.2);
+      } catch {
+        /* ignore */
+      }
+    }
+    window.setTimeout(() => {
+      try {
+        this.bedGain?.disconnect();
+        this.rushGain?.disconnect();
+      } catch {
+        /* ignore */
+      }
+      this.bedGain = null;
+      this.rushGain = null;
+    }, 320);
+    this.pressure = 0;
+  }
+
+  /** 0..1 — sobe a camada de rush/caos/pressão. */
+  setPressure(p: number): void {
+    const target = Math.max(0, Math.min(1, p));
+    this.pressure = this.pressure * 0.82 + target * 0.18;
+    if (!this.ctx || !this.rushGain || !this.bedOn) return;
+    const level = 0.0001 + this.pressure * 0.11;
+    const t = this.ctx.currentTime;
+    this.rushGain.gain.cancelScheduledValues(t);
+    this.rushGain.gain.setTargetAtTime(level, t, 0.18);
+  }
+
+  private pauseBedTimers(): void {
+    if (this.bedTimer != null) {
+      window.clearInterval(this.bedTimer);
+      this.bedTimer = null;
+    }
+    if (this.rushTimer != null) {
+      window.clearInterval(this.rushTimer);
+      this.rushTimer = null;
+    }
+  }
+
+  private resumeBedTimers(): void {
+    if (!this.bedOn || this.muted) return;
+    this.pauseBedTimers();
+    // Arpejo curto e espaçado — não é hum contínuo.
+    this.bedTimer = window.setInterval(() => this.bedTick(), 520);
+    this.rushTimer = window.setInterval(() => this.rushTick(), 280);
+    this.bedTick();
+  }
+
+  private bedTick(): void {
+    if (!this.ctx || !this.bedGain || !this.bedOn || this.muted) return;
+    // Pentatônica agradável (C minor-ish / loja noturna)
+    const notes = [196, 233.08, 261.63, 311.13, 349.23, 392];
+    const n = notes[this.step % notes.length]!;
+    this.step += 1;
+    this.pluck(n, 0.28, 0.045, this.bedGain, "triangle");
+    if (this.step % 4 === 0) {
+      this.pluck(n * 1.5, 0.18, 0.02, this.bedGain, "sine");
+    }
+  }
+
+  private rushTick(): void {
+    if (!this.ctx || !this.rushGain || !this.bedOn || this.muted) return;
+    if (this.pressure < 0.12) return;
+    const notes = [523.25, 587.33, 698.46, 783.99];
+    const n = notes[this.step % notes.length]!;
+    const g = 0.018 + this.pressure * 0.04;
+    this.pluck(n, 0.12, g, this.rushGain, "square");
+    if (this.pressure > 0.55) {
+      this.pluck(n * 0.5, 0.08, g * 0.7, this.rushGain, "triangle");
+    }
+  }
+
+  private pluck(
+    freq: number,
+    dur: number,
+    gain: number,
+    dest: GainNode,
+    type: OscillatorType,
+  ): void {
+    if (!this.ctx || this.muted) return;
+    const t0 = this.ctx.currentTime;
+    const o = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    const f = this.ctx.createBiquadFilter();
+    f.type = "lowpass";
+    f.frequency.value = type === "square" ? 1800 : 2400;
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t0);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain), t0 + 0.018);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(f);
+    f.connect(g);
+    g.connect(dest);
+    o.start(t0);
+    o.stop(t0 + dur + 0.03);
   }
 }

@@ -22,6 +22,15 @@ export type ChaosKind = "apagao" | "liquidacao" | "gato" | "rush";
 
 export type View = "title" | "how" | "credits" | "play" | "paused" | "over" | "summary" | "tutorial";
 
+/** Uma entrada do Diário da esquina (últimos expedientes). */
+export type RunRecord = {
+  score: number;
+  turno: number;
+  stars: number;
+  /** epoch ms; opcional em saves antigos */
+  at?: number;
+};
+
 export type SaveData = {
   best: number;
   bestTurno: number;
@@ -32,6 +41,8 @@ export type SaveData = {
   bestStars: number;
   /** Estrelas acumuladas em todos os expedientes. */
   totalStars: number;
+  /** Até 5 últimos expedientes (mais recente primeiro). */
+  history: RunRecord[];
 };
 
 export type GoalKind = "serve" | "combo" | "clean";

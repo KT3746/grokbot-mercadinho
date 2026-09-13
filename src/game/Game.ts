@@ -15,7 +15,7 @@ import {
   type Run,
   type SimEvent,
 } from "./sim";
-import { loadSave, writeSave } from "../persist";
+import { loadSave, pushRunHistory, writeSave } from "../persist";
 import { computeLayout, contains, type PlayLayout } from "../render/layout";
 import { drawProduct, drawShop, hitCustomer, hitProduct, type PointerGhost } from "../render/draw";
 import type { ProductId, SaveData, View } from "../types";
@@ -508,6 +508,7 @@ export class Game {
   private showTurnSummary(summary: import("./sim").TurnSummary): void {
     this.clearDrag();
     this.view = "summary";
+    this.audio.setPressure(0);
     this.ui.turnSummary(summary);
     this.syncChrome();
     this.audio.shift();
@@ -540,6 +541,7 @@ export class Game {
         this.selectedId();
         this.syncHud();
         this.syncBanner();
+        this.syncMusicPressure();
       } else if (this.run.awaitingSummary) {
         // Mantém partículas/shake amortecendo sob o overlay.
         tick(this.run, dt);
@@ -644,8 +646,9 @@ export class Game {
   private showTitle(): void {
     this.view = "title";
     this.run = null;
+    this.audio.stopBed();
     document.body.classList.remove("tutor-shelf", "tutor-lookalike", "tutor-speed");
-    this.ui.title(this.save.muted, this.save.best, this.save.bestStars);
+    this.ui.title(this.save.muted, this.save.best, this.save.bestStars, this.save.history || []);
     this.syncChrome();
   }
 
@@ -709,6 +712,8 @@ export class Game {
       2400,
     );
     this.audio.shift();
+    this.audio.startBed();
+    this.audio.setPressure(0);
     this.playGuard(300, 500);
   }
 
@@ -717,6 +722,7 @@ export class Game {
     if (this.pauseUiBlocked()) return;
     this.clearDrag();
     this.view = "paused";
+    this.audio.setPressure(0);
     this.ui.pause(this.save.muted);
     this.syncChrome();
   }
@@ -742,9 +748,20 @@ export class Game {
     if (turno > this.save.bestTurno) this.save.bestTurno = turno;
     this.save.totalStars = (this.save.totalStars || 0) + runStars;
     if (runStars > (this.save.bestStars || 0)) this.save.bestStars = runStars;
+    pushRunHistory(this.save, { score, turno, stars: runStars, at: Date.now() });
     writeSave(this.save);
+    this.audio.stopBed();
     this.view = "over";
-    this.ui.over(score, served, turno, this.save.best, isBest, runStars, this.save.bestStars);
+    this.ui.over(
+      score,
+      served,
+      turno,
+      this.save.best,
+      isBest,
+      runStars,
+      this.save.bestStars,
+      this.save.history || [],
+    );
     this.syncChrome();
   }
 
@@ -803,7 +820,7 @@ export class Game {
         this.save.muted = muted;
         writeSave(this.save);
         this.syncMuteButtons();
-        if (this.view === "title") this.ui.title(muted, this.save.best, this.save.bestStars);
+        if (this.view === "title") this.ui.title(muted, this.save.best, this.save.bestStars, this.save.history || []);
         if (this.view === "paused") this.ui.pause(muted);
         this.audio.click();
         break;
@@ -811,6 +828,32 @@ export class Game {
       default:
         break;
     }
+  }
+
+
+  /** Pressão sonora: rush/caos + paciência baixa na fila. */
+  private syncMusicPressure(): void {
+    const run = this.run;
+    if (!run || this.view !== "play") {
+      this.audio.setPressure(0);
+      return;
+    }
+    let p = 0;
+    if (run.chaos) {
+      p += run.chaos.kind === "rush" ? 0.85 : 0.45;
+    }
+    const waiting = run.customers.filter((c) => c.mood === "wait" || c.mood === "enter");
+    if (waiting.length >= 3) p += 0.2;
+    if (waiting.length >= 4) p += 0.15;
+    let low = 0;
+    for (const c of waiting) {
+      const r = c.patience / Math.max(0.001, c.patienceMax);
+      if (r < 0.34) low += 1;
+      if (r < 0.18) low += 1;
+    }
+    p += Math.min(0.45, low * 0.14);
+    if (run.turno >= 4) p += 0.12;
+    this.audio.setPressure(Math.min(1, p));
   }
 
   private syncChrome(): void {
