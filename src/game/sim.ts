@@ -9,7 +9,7 @@ import {
   randInt,
   shuffleInPlace,
 } from "../config";
-import { ARCHETYPES, PRODUCT_BY_ID, SHIFT_LINES, TOASTS, productsUnlocked } from "../data/catalog";
+import { ARCHETYPES, IDLE_CHAT, PRODUCT_BY_ID, SHIFT_LINES, TOASTS, productsUnlocked } from "../data/catalog";
 import type { ChaosKind, CustomerMood, ProductId, TurnGoal } from "../types";
 
 export type Customer = {
@@ -25,6 +25,8 @@ export type Customer = {
   phrase: string;
   phraseT: number;
   special: boolean;
+  /** Já soltou um resmungo casual neste atendimento. */
+  chattered: boolean;
 };
 
 export type Chaos = {
@@ -248,7 +250,7 @@ function freeSlot(run: Run): number {
 
 function say(c: Customer, list: string[]): void {
   c.phrase = pick(list);
-  c.phraseT = 2.4;
+  c.phraseT = 2.2;
 }
 
 export function spawnCustomer(run: Run): SimEvent | null {
@@ -270,6 +272,7 @@ export function spawnCustomer(run: Run): SimEvent | null {
     phrase: pick(arch.arrive),
     phraseT: 2.6,
     special,
+    chattered: false,
   };
   if (run.first) {
     c.patienceMax *= 1.5;
@@ -527,14 +530,19 @@ export function tick(run: Run, dt: number): SimEvent[] {
   for (const c of run.customers) {
     if (c.phraseT > 0) c.phraseT -= dt;
     if (c.mood === "enter") {
-      c.anim = Math.min(1, c.anim + dt * 2.4);
+      c.anim = Math.min(1, c.anim + dt * 3.2);
       if (c.anim >= 1) c.mood = "wait";
     } else if (c.mood === "wait") {
       const drain = run.turno <= 1 ? simDt * 0.4 : run.turno === 2 ? simDt * 0.82 : simDt;
       c.patience -= drain;
-      if (c.patience / c.patienceMax < 0.34 && c.phraseT <= 0) {
+      const ratio = c.patience / c.patienceMax;
+      if (ratio < 0.34 && c.phraseT <= 0) {
         const arch = ARCHETYPES.find((a) => a.id === c.arch);
         if (arch) say(c, arch.wait);
+      } else if (!c.chattered && ratio > 0.55 && c.phraseT <= 0 && Math.random() < 0.004) {
+        c.chattered = true;
+        say(c, IDLE_CHAT);
+        c.phraseT = Math.min(c.phraseT, 1.6);
       }
       if (c.patience <= 0) {
         c.mood = "rage";
@@ -554,9 +562,13 @@ export function tick(run: Run, dt: number): SimEvent[] {
           events.push({ type: "over" });
         }
       }
-    } else if (c.mood === "happy" || c.mood === "rage" || c.mood === "leave") {
-      c.anim = Math.min(1, c.anim + dt * 1.6);
-      if (c.mood === "happy" && c.anim > 0.55) c.mood = "leave";
+    } else if (c.mood === "happy") {
+      c.anim = Math.min(1, c.anim + dt * 2.4);
+      if (c.anim > 0.5) c.mood = "leave";
+    } else if (c.mood === "rage") {
+      c.anim = Math.min(1, c.anim + dt * 2.0);
+    } else if (c.mood === "leave") {
+      c.anim = Math.min(1, c.anim + dt * 2.2);
     }
   }
   run.customers = run.customers.filter((c) => {

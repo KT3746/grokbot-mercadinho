@@ -28,8 +28,10 @@ export const PRODUCTS: readonly Product[] = [
   { id: "refri", name: "Refri Guaraná", short: "Refri", shelf: "Geladeira", color: "#3d8f4a", lookalike: "refriZero", unlock: 1 },
   { id: "refriZero", name: "Refri Zero", short: "Zero", shelf: "Geladeira", color: "#1f3d28", lookalike: "refri", unlock: 2 },
   { id: "suco", name: "Suco de Caixinha", short: "Suco", shelf: "Geladeira", color: "#e07a2a", unlock: 1 },
-  { id: "leite", name: "Leite Caixinha", short: "Leite", shelf: "Geladeira", color: "#f6f3ea", unlock: 1 },
-  { id: "agua", name: "Água Mineral", short: "Água", shelf: "Geladeira", color: "#4d8fbf", unlock: 2 },
+  { id: "leite", name: "Leite Caixinha", short: "Leite", shelf: "Geladeira", color: "#f6f3ea", lookalike: "cremeLeite", unlock: 1 },
+  { id: "cremeLeite", name: "Creme de Leite", short: "Creme", shelf: "Geladeira", color: "#e8d4a8", lookalike: "leite", unlock: 3 },
+  { id: "agua", name: "Água Mineral", short: "Água", shelf: "Geladeira", color: "#4d8fbf", lookalike: "aguaGas", unlock: 2 },
+  { id: "aguaGas", name: "Água com Gás", short: "c/ Gás", shelf: "Geladeira", color: "#2a6f9a", lookalike: "agua", unlock: 3 },
   { id: "pao", name: "Pão Francês", short: "Pão", shelf: "Padaria", color: "#e8c49a", unlock: 1 },
   { id: "biscoito", name: "Biscoito Recheado", short: "Biscoito", shelf: "Doces", color: "#c4491d", unlock: 1 },
   { id: "salgadinho", name: "Salgadinho", short: "Salgad.", shelf: "Salgados", color: "#e3b23c", unlock: 1 },
@@ -187,6 +189,15 @@ export const ARCHETYPES: readonly Archetype[] = [
 export function archetypeById(id: string): Archetype {
   return ARCHETYPES.find((a) => a.id === id) ?? ARCHETYPES[0]!;
 }
+
+/** Frases curtas ocasionais (balão de fala) — não spam. */
+export const IDLE_CHAT = [
+  "Hmm…",
+  "Só um minutinho.",
+  "Olha a fila.",
+  "Tô de boa. Quase.",
+  "Cadê o certo?",
+];
 
 export const TOASTS = {
   wrong: ["Ops. Era o outro.", "Quase. O primo do pedido.", "Produto sósia. Tenta de novo."],

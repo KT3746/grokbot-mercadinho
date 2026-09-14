@@ -3,7 +3,9 @@ export type ProductId =
   | "refriZero"
   | "suco"
   | "leite"
+  | "cremeLeite"
   | "agua"
+  | "aguaGas"
   | "pao"
   | "biscoito"
   | "salgadinho"
@@ -20,7 +22,7 @@ export type CustomerMood = "enter" | "wait" | "happy" | "leave" | "rage";
 
 export type ChaosKind = "apagao" | "liquidacao" | "gato" | "rush";
 
-export type View = "title" | "how" | "credits" | "play" | "paused" | "over" | "summary" | "tutorial";
+export type View = "title" | "how" | "credits" | "shop" | "play" | "paused" | "over" | "summary" | "tutorial";
 
 /** Uma entrada do Diário da esquina (últimos expedientes). */
 export type RunRecord = {
@@ -29,6 +31,12 @@ export type RunRecord = {
   stars: number;
   /** epoch ms; opcional em saves antigos */
   at?: number;
+};
+
+export type EquippedCosmetics = {
+  sign: string;
+  shelf: string;
+  badge: string;
 };
 
 export type SaveData = {
@@ -43,6 +51,10 @@ export type SaveData = {
   totalStars: number;
   /** Até 5 últimos expedientes (mais recente primeiro). */
   history: RunRecord[];
+  /** IDs de cosméticos já desbloqueados (persistidos). */
+  unlockedCosmetics: string[];
+  /** Seleção atual (só visuais). */
+  equipped: EquippedCosmetics;
 };
 
 export type GoalKind = "serve" | "combo" | "clean";

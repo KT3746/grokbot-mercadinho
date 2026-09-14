@@ -15,6 +15,13 @@ import {
   type Run,
   type SimEvent,
 } from "./sim";
+import {
+  newlyUnlocked,
+  paletteFor,
+  resolveEquipped,
+  syncUnlocks,
+  type CosmeticPalette,
+} from "../data/cosmetics";
 import { loadSave, pushRunHistory, writeSave } from "../persist";
 import { computeLayout, contains, type PlayLayout } from "../render/layout";
 import { drawProduct, drawShop, hitCustomer, hitProduct, type PointerGhost } from "../render/draw";
@@ -54,6 +61,11 @@ export class Game {
   /** Hitstop residual (segundos de relógio real). */
   private hitstop = 0;
   private tutorialStep = 0;
+  private cosPalette: CosmeticPalette = paletteFor({
+    sign: "sign-classic",
+    shelf: "shelf-verde",
+    badge: "badge-padrao",
+  });
 
   constructor(canvas: HTMLCanvasElement, uiRoot: HTMLElement) {
     const ctx = canvas.getContext("2d", { alpha: false });
@@ -63,6 +75,8 @@ export class Game {
     this.ui = new Screens(uiRoot);
     this.ui.onAction = (a) => this.handle(a);
     this.save = loadSave();
+    syncUnlocks(this.save);
+    this.refreshCosmetics();
     this.audio.setMuted(this.save.muted);
     this.toastEl = document.getElementById("toasts")!;
     this.bannerEl = document.getElementById("banner")!;
@@ -565,7 +579,15 @@ export class Game {
         ctx.scale(s, s);
         ctx.translate(-cssW / 2, -cssH / 2);
       }
-      drawShop(ctx, this.run, this.layout, this.run.t, this.view === "play" ? this.ghost : null, this.selected);
+      drawShop(
+        ctx,
+        this.run,
+        this.layout,
+        this.run.t,
+        this.view === "play" ? this.ghost : null,
+        this.selected,
+        this.cosPalette,
+      );
       ctx.restore();
       return;
     }
@@ -588,8 +610,35 @@ export class Game {
       }
     }
     ctx.globalAlpha = 1;
-    ctx.fillStyle = "#241810";
+    ctx.fillStyle = this.cosPalette.shelfDeep;
     ctx.fillRect(0, h * 0.58, w, 28);
+    // Letreiro cosmético no menu
+    const sw = Math.min(220, w * 0.55);
+    const sh = 36;
+    const sx = (w - sw) / 2;
+    const sy = h * 0.18;
+    ctx.save();
+    ctx.shadowColor = this.cosPalette.signGlow;
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = this.cosPalette.signFill;
+    ctx.beginPath();
+    const rr = 10;
+    ctx.moveTo(sx + rr, sy);
+    ctx.arcTo(sx + sw, sy, sx + sw, sy + sh, rr);
+    ctx.arcTo(sx + sw, sy + sh, sx, sy + sh, rr);
+    ctx.arcTo(sx, sy + sh, sx, sy, rr);
+    ctx.arcTo(sx, sy, sx + sw, sy, rr);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = this.cosPalette.signStroke;
+    ctx.lineWidth = 2.4;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = this.cosPalette.signStroke;
+    ctx.font = `800 ${Math.max(16, Math.min(22, sw * 0.1))}px Lilita One, Nunito, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.fillText(GAME_TITLE, w / 2, sy + sh * 0.7, sw - 16);
+    ctx.restore();
     const ids = productsUnlocked(3).map((p) => p.id);
     const t = performance.now() / 1000;
     ids.slice(0, 8).forEach((id, i) => {
@@ -643,12 +692,37 @@ export class Game {
     this.layout = computeLayout(this.cssW, this.cssH, this.run.turno, slots, band);
   }
 
+  private refreshCosmetics(): void {
+    const eq = resolveEquipped(this.save);
+    this.save.equipped = eq;
+    this.cosPalette = paletteFor(eq);
+    const root = document.documentElement;
+    root.style.setProperty("--cos-badge", this.cosPalette.badge);
+    root.style.setProperty("--cos-badge-soft", this.cosPalette.badgeSoft);
+    root.style.setProperty("--cos-sign", this.cosPalette.signStroke);
+    const shop = document.getElementById("hud-shop");
+    if (shop) {
+      shop.style.color = this.cosPalette.badge;
+      shop.style.textShadow = `0 0 12px ${this.cosPalette.badgeSoft}`;
+    }
+  }
+
   private showTitle(): void {
     this.view = "title";
     this.run = null;
     this.audio.stopBed();
     document.body.classList.remove("tutor-shelf", "tutor-lookalike", "tutor-speed");
+    syncUnlocks(this.save);
+    this.refreshCosmetics();
     this.ui.title(this.save.muted, this.save.best, this.save.bestStars, this.save.history || []);
+    this.syncChrome();
+  }
+
+  private showShop(): void {
+    this.view = "shop";
+    syncUnlocks(this.save);
+    const eq = resolveEquipped(this.save);
+    this.ui.shop(this.save, eq);
     this.syncChrome();
   }
 
@@ -749,9 +823,17 @@ export class Game {
     this.save.totalStars = (this.save.totalStars || 0) + runStars;
     if (runStars > (this.save.bestStars || 0)) this.save.bestStars = runStars;
     pushRunHistory(this.save, { score, turno, stars: runStars, at: Date.now() });
+    const fresh = newlyUnlocked(this.save);
+    syncUnlocks(this.save);
     writeSave(this.save);
+    this.refreshCosmetics();
     this.audio.stopBed();
     this.view = "over";
+    if (fresh.length) {
+      window.setTimeout(() => {
+        this.toast(`Loja da esquina: ${fresh[0]!.name} desbloqueado!`, 2200);
+      }, 600);
+    }
     this.ui.over(
       score,
       served,
@@ -776,6 +858,25 @@ export class Game {
         this.ui.how();
         this.syncChrome();
         break;
+      case "shop":
+        this.showShop();
+        break;
+      case "equip": {
+        const itemId = a.id;
+        const slot = a.slot;
+        syncUnlocks(this.save);
+        const eq = resolveEquipped(this.save);
+        if (slot === "sign") eq.sign = itemId;
+        if (slot === "shelf") eq.shelf = itemId;
+        if (slot === "badge") eq.badge = itemId;
+        // Só equipa se desbloqueado (resolveEquipped filtra inválidos)
+        this.save.equipped = resolveEquipped({ ...this.save, equipped: eq });
+        writeSave(this.save);
+        this.refreshCosmetics();
+        this.ui.shop(this.save, this.save.equipped);
+        this.audio.click();
+        break;
+      }
       case "credits":
         this.view = "credits";
         this.ui.credits();
@@ -820,7 +921,9 @@ export class Game {
         this.save.muted = muted;
         writeSave(this.save);
         this.syncMuteButtons();
-        if (this.view === "title") this.ui.title(muted, this.save.best, this.save.bestStars, this.save.history || []);
+        if (this.view === "title") {
+          this.ui.title(muted, this.save.best, this.save.bestStars, this.save.history || []);
+        }
         if (this.view === "paused") this.ui.pause(muted);
         this.audio.click();
         break;
@@ -871,7 +974,7 @@ export class Game {
       if (hand) hand.hidden = false;
       this.remeasureHud(true);
     }
-    if (this.view === "title" || this.view === "how" || this.view === "credits" || this.view === "over") {
+    if (this.view === "title" || this.view === "how" || this.view === "credits" || this.view === "shop" || this.view === "over") {
       this.bannerEl.hidden = true;
       this.toastEl.hidden = true;
       this.toastEl.replaceChildren();
