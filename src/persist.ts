@@ -10,6 +10,8 @@ const empty = (): SaveData => ({
   bestStars: 0,
   totalStars: 0,
   history: [],
+  unlockedCosmetics: ["sign-classic", "shelf-verde", "badge-padrao"],
+  equipped: { sign: "sign-classic", shelf: "shelf-verde", badge: "badge-padrao" },
 });
 
 function sanitizeHistory(raw: unknown): RunRecord[] {
@@ -35,6 +37,10 @@ export function loadSave(): SaveData {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return empty();
     const parsed = JSON.parse(raw) as Partial<SaveData>;
+    const equippedRaw = parsed.equipped && typeof parsed.equipped === "object" ? parsed.equipped as Partial<SaveData["equipped"]> : {};
+    const unlocked = Array.isArray(parsed.unlockedCosmetics)
+      ? parsed.unlockedCosmetics.filter((x): x is string => typeof x === "string").slice(0, 64)
+      : ["sign-classic", "shelf-verde", "badge-padrao"];
     return {
       best: typeof parsed.best === "number" ? parsed.best : 0,
       bestTurno: typeof parsed.bestTurno === "number" ? parsed.bestTurno : 1,
@@ -44,6 +50,12 @@ export function loadSave(): SaveData {
       bestStars: typeof parsed.bestStars === "number" ? parsed.bestStars : 0,
       totalStars: typeof parsed.totalStars === "number" ? parsed.totalStars : 0,
       history: sanitizeHistory(parsed.history),
+      unlockedCosmetics: unlocked.length ? unlocked : ["sign-classic", "shelf-verde", "badge-padrao"],
+      equipped: {
+        sign: typeof equippedRaw.sign === "string" ? equippedRaw.sign : "sign-classic",
+        shelf: typeof equippedRaw.shelf === "string" ? equippedRaw.shelf : "shelf-verde",
+        badge: typeof equippedRaw.badge === "string" ? equippedRaw.badge : "badge-padrao",
+      },
     };
   } catch {
     return empty();

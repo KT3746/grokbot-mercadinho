@@ -1,5 +1,6 @@
-import { wantsTouchCopy } from "../config";
+import { GAME_TITLE, wantsTouchCopy } from "../config";
 import { ARCHETYPES, PRODUCT_BY_ID } from "../data/catalog";
+import type { CosmeticPalette } from "../data/cosmetics";
 import type { Customer, Particle, Run } from "../game/sim";
 import type { ProductId } from "../types";
 import { applyShelfOrder, contains, type PlayLayout, type Rect } from "./layout";
@@ -17,6 +18,18 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.closePath();
 }
 
+const DEFAULT_PALETTE: CosmeticPalette = {
+  signId: "sign-classic",
+  shelfAccent: "#24362c",
+  shelfDeep: "#16241c",
+  shelfStroke: "rgba(227, 178, 60, 0.22)",
+  badge: "#e3b23c",
+  badgeSoft: "rgba(227,178,60,0.35)",
+  signFill: "#2a2218",
+  signStroke: "#e3b23c",
+  signGlow: "rgba(227,178,60,0.35)",
+};
+
 export function drawShop(
   ctx: CanvasRenderingContext2D,
   run: Run,
@@ -24,6 +37,7 @@ export function drawShop(
   t: number,
   ghost: PointerGhost,
   selectedId: number | null,
+  cosmetics: CosmeticPalette = DEFAULT_PALETTE,
 ): void {
   const { w, h } = layout;
   ctx.clearRect(0, 0, w, h);
@@ -32,11 +46,11 @@ export function drawShop(
     ctx.translate((Math.random() - 0.5) * run.shake, (Math.random() - 0.5) * run.shake);
   }
 
-  paintWall(ctx, w, h, layout, t);
+  paintWall(ctx, w, h, layout, t, cosmetics);
   paintFloor(ctx, layout);
   paintQueueZone(ctx, layout);
   for (const c of run.customers) drawCustomer(ctx, c, layout, t);
-  paintShelves(ctx, layout, run, t);
+  paintShelves(ctx, layout, run, t, cosmetics);
   if (run.chaos?.kind === "gato") drawCat(ctx, layout, run, t);
   drawParticles(ctx, run.particles, layout);
   if (ghost) drawProduct(ctx, ghost.id, ghost.x, ghost.y, Math.min(84, layout.w * 0.14), t, true);
@@ -75,7 +89,14 @@ export function drawShop(
   ctx.restore();
 }
 
-function paintWall(ctx: CanvasRenderingContext2D, w: number, h: number, layout: PlayLayout, _t: number): void {
+function paintWall(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  layout: PlayLayout,
+  t: number,
+  cos: CosmeticPalette,
+): void {
   const g = ctx.createLinearGradient(0, 0, 0, h);
   g.addColorStop(0, "#1c1612");
   g.addColorStop(0.45, "#15110e");
@@ -84,6 +105,43 @@ function paintWall(ctx: CanvasRenderingContext2D, w: number, h: number, layout: 
   ctx.fillRect(0, 0, w, h);
   ctx.fillStyle = "#12100e";
   ctx.fillRect(0, 0, w, layout.hud.h + 6);
+  // Placa pequena na parede (acima da fila) — cosmético visual.
+  const signW = Math.min(168, w * 0.36);
+  const signH = 22;
+  const sx = layout.queue.x + (layout.queue.w - signW) / 2;
+  const sy = layout.queue.y - 4;
+  if (sy > layout.hud.h + 2) {
+    ctx.save();
+    ctx.shadowColor = cos.signGlow;
+    ctx.shadowBlur = cos.signId === "sign-neon" ? 10 + Math.sin(t * 4) * 2 : 4;
+    ctx.fillStyle = cos.signFill;
+    roundRect(ctx, sx, sy, signW, signH, 6);
+    ctx.fill();
+    ctx.strokeStyle = cos.signStroke;
+    ctx.lineWidth = cos.signId === "sign-neon" ? 2.4 : 1.8;
+    roundRect(ctx, sx, sy, signW, signH, 6);
+    ctx.stroke();
+    if (cos.signId === "sign-azulejo") {
+      ctx.fillStyle = "rgba(159, 212, 238, 0.18)";
+      for (let i = 0; i < 4; i++) {
+        ctx.fillRect(sx + 6 + i * (signW / 4), sy + 3, signW / 5 - 4, signH - 6);
+      }
+    }
+    if (cos.signId === "sign-madeira") {
+      ctx.strokeStyle = "rgba(0,0,0,0.25)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(sx + 8, sy + signH * 0.35);
+      ctx.lineTo(sx + signW - 8, sy + signH * 0.35);
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = cos.signStroke;
+    ctx.font = `800 ${Math.max(11, Math.min(14, signW * 0.09))}px Lilita One, Nunito, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.fillText(GAME_TITLE, sx + signW / 2, sy + signH * 0.72, signW - 12);
+    ctx.restore();
+  }
 }
 
 function paintFloor(ctx: CanvasRenderingContext2D, layout: PlayLayout): void {
@@ -99,18 +157,24 @@ function paintQueueZone(ctx: CanvasRenderingContext2D, layout: PlayLayout): void
 }
 
 
-function paintShelves(ctx: CanvasRenderingContext2D, layout: PlayLayout, run: Run, t: number): void {
+function paintShelves(
+  ctx: CanvasRenderingContext2D,
+  layout: PlayLayout,
+  run: Run,
+  t: number,
+  cos: CosmeticPalette = DEFAULT_PALETTE,
+): void {
   const s = layout.shelves;
   ctx.fillStyle = "#12100c";
   roundRect(ctx, s.x - 8, s.y - 8, s.w + 16, s.h + 16, 16);
   ctx.fill();
   const shelfGrad = ctx.createLinearGradient(s.x, s.y, s.x, s.y + s.h);
-  shelfGrad.addColorStop(0, "#24362c");
-  shelfGrad.addColorStop(1, "#16241c");
+  shelfGrad.addColorStop(0, cos.shelfAccent);
+  shelfGrad.addColorStop(1, cos.shelfDeep);
   ctx.fillStyle = shelfGrad;
   roundRect(ctx, s.x, s.y, s.w, s.h, 13);
   ctx.fill();
-  ctx.strokeStyle = "rgba(227, 178, 60, 0.22)";
+  ctx.strokeStyle = cos.shelfStroke;
   ctx.lineWidth = 2;
   roundRect(ctx, s.x + 1, s.y + 1, s.w - 2, s.h - 2, 12);
   ctx.stroke();
@@ -222,18 +286,46 @@ function drawCustomer(ctx: CanvasRenderingContext2D, c: Customer, layout: PlayLa
   const arch = ARCHETYPES.find((a) => a.id === c.arch) ?? ARCHETYPES[0]!;
   let ox = 0;
   let oy = 0;
-  if (c.mood === "enter") oy = (1 - c.anim) * (layout.landscape ? 0 : -40);
-  if (c.mood === "enter" && layout.landscape) ox = (1 - c.anim) * -50;
-  if (c.mood === "leave") oy += c.anim * (layout.landscape ? 0 : -50);
-  if (c.mood === "leave" && layout.landscape) ox -= c.anim * 60;
+  let scale = 1;
+  let rot = 0;
+  let alpha = 1;
+  // Entrada: desliza + bounce curto (legível no celular).
+  if (c.mood === "enter") {
+    const k = 1 - c.anim;
+    const bounce = Math.sin(c.anim * Math.PI) * 10;
+    oy = k * (layout.landscape ? 0 : -48) - bounce * (1 - k);
+    if (layout.landscape) ox = k * -64;
+    scale = 0.82 + c.anim * 0.18;
+  }
+  // Saída feliz: sobe/sai com hop.
+  if (c.mood === "leave") {
+    const hop = Math.sin(c.anim * Math.PI) * 14;
+    oy += c.anim * (layout.landscape ? -8 : -56) - hop * (1 - c.anim);
+    if (layout.landscape) ox -= c.anim * 72;
+    scale = 1 - c.anim * 0.22;
+    alpha = 1 - c.anim * 0.55;
+  }
+  // Furioso: treme + desce batendo o pé.
   if (c.mood === "rage") {
-    ox += (1 - c.anim) * Math.sin(t * 30) * 4;
-    oy += c.anim * 30;
+    const shake = (1 - c.anim) * Math.sin(t * 38 + c.id) * 6;
+    ox += shake;
+    oy += c.anim * 36 + Math.abs(Math.sin(t * 22)) * 3 * (1 - c.anim);
+    rot = shake * 0.03;
+    scale = 1 + (1 - c.anim) * 0.06;
+  }
+  // Feliz: pulinho + leve scale.
+  if (c.mood === "happy") {
+    const hop = Math.sin(Math.min(1, c.anim * 2) * Math.PI) * 16;
+    oy -= hop;
+    scale = 1 + Math.sin(Math.min(1, c.anim * 2) * Math.PI) * 0.1;
   }
   const cx = slot.x + slot.w / 2 + ox;
-  const cy = slot.y + slot.h * 0.62 + oy + Math.sin(t * 3 + c.id) * 2;
+  const cy = slot.y + slot.h * 0.62 + oy + Math.sin(t * 3 + c.id) * (c.mood === "wait" ? 2 : 0.5);
   ctx.save();
+  ctx.globalAlpha = alpha;
   ctx.translate(cx, cy);
+  ctx.rotate(rot);
+  ctx.scale(scale, scale);
   ctx.fillStyle = "rgba(0,0,0,0.16)";
   ctx.beginPath();
   ctx.ellipse(0, 26, 18, 6, 0, 0, Math.PI * 2);
@@ -241,6 +333,25 @@ function drawCustomer(ctx: CanvasRenderingContext2D, c: Customer, layout: PlayLa
   ctx.fillStyle = arch.shirt;
   roundRect(ctx, -16, 0, 32, 26, 8);
   ctx.fill();
+  // Braços leves: felizes abrem, raiva cruzam vibração.
+  ctx.strokeStyle = arch.shirt;
+  ctx.lineWidth = 5;
+  ctx.lineCap = "round";
+  if (c.mood === "happy") {
+    ctx.beginPath();
+    ctx.moveTo(-14, 6);
+    ctx.lineTo(-22, -6);
+    ctx.moveTo(14, 6);
+    ctx.lineTo(22, -6);
+    ctx.stroke();
+  } else if (c.mood === "rage") {
+    ctx.beginPath();
+    ctx.moveTo(-12, 8);
+    ctx.lineTo(-18, 18);
+    ctx.moveTo(12, 8);
+    ctx.lineTo(18, 18);
+    ctx.stroke();
+  }
   ctx.fillStyle = arch.skin;
   ctx.beginPath();
   ctx.arc(0, -12, 13, 0, Math.PI * 2);
@@ -252,6 +363,17 @@ function drawCustomer(ctx: CanvasRenderingContext2D, c: Customer, layout: PlayLa
   ctx.arc(-4.5, -13, impatient ? 2.1 : 1.7, 0, Math.PI * 2);
   ctx.arc(4.5, -13, impatient ? 2.1 : 1.7, 0, Math.PI * 2);
   ctx.fill();
+  if (c.mood === "rage") {
+    // Sobrancelhas zangadas
+    ctx.strokeStyle = "#2a1d12";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-7, -17);
+    ctx.lineTo(-2, -15);
+    ctx.moveTo(7, -17);
+    ctx.lineTo(2, -15);
+    ctx.stroke();
+  }
   ctx.strokeStyle = "#2a1d12";
   ctx.lineWidth = 1.5;
   ctx.beginPath();
@@ -333,11 +455,67 @@ function drawCustomer(ctx: CanvasRenderingContext2D, c: Customer, layout: PlayLa
     ctx.font = "800 12px Nunito, sans-serif";
     ctx.fillText("Obrigado!", bx + bubbleW / 2, by + bubbleH * 0.6);
   }
-  if (c.phraseT > 0 && c.mood !== "enter") {
-    ctx.fillStyle = "rgba(42,29,18,0.86)";
-    ctx.font = "700 10px Nunito, sans-serif";
-    wrapText(ctx, c.phrase, slot.x + slot.w / 2 + ox, slot.y + slot.h - 10 + oy, slot.w - 8, 12);
+  // Balão de fala curto (PT-BR) — ocasional, não polui o pedido.
+  if (c.phraseT > 0 && c.phrase) {
+    drawSpeechBubble(ctx, c.phrase, slot.x + slot.w / 2 + ox, Math.max(slot.y + 4 + oy, barY - 4), slot.w - 6, c.mood);
   }
+}
+
+function drawSpeechBubble(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  cx: number,
+  bottomY: number,
+  maxW: number,
+  mood: string,
+): void {
+  const padX = 8;
+  const padY = 5;
+  ctx.save();
+  ctx.font = "700 11px Nunito, sans-serif";
+  const words = text.split(" ");
+  const lines: string[] = [];
+  let line = "";
+  const wrapW = Math.min(maxW - 8, 150);
+  for (const w of words) {
+    const test = line ? `${line} ${w}` : w;
+    if (ctx.measureText(test).width > wrapW && line) {
+      lines.push(line);
+      line = w;
+    } else line = test;
+  }
+  if (line) lines.push(line);
+  const shown = lines.slice(0, 2);
+  const tw = Math.max(...shown.map((l) => ctx.measureText(l).width), 24);
+  const bw = Math.min(maxW, tw + padX * 2);
+  const bh = shown.length * 13 + padY * 2;
+  const bx = cx - bw / 2;
+  const by = bottomY - bh - 6;
+  const fill = mood === "rage" ? "#3a241c" : mood === "happy" ? "#1e2a1c" : "#241c14";
+  const stroke = mood === "rage" ? "#e05228" : mood === "happy" ? "#4caf5a" : "#e3b23c";
+  ctx.fillStyle = fill;
+  roundRect(ctx, bx, by, bw, bh, 8);
+  ctx.fill();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 1.6;
+  roundRect(ctx, bx, by, bw, bh, 8);
+  ctx.stroke();
+  // Rabicho
+  ctx.beginPath();
+  ctx.moveTo(cx - 5, by + bh);
+  ctx.lineTo(cx, by + bh + 6);
+  ctx.lineTo(cx + 5, by + bh);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.strokeStyle = stroke;
+  ctx.stroke();
+  ctx.fillStyle = "#f7ecd4";
+  ctx.textAlign = "center";
+  shown.forEach((l, i) => {
+    ctx.fillText(l, cx, by + padY + 11 + i * 13, bw - 6);
+  });
+  ctx.restore();
 }
 
 function drawHair(ctx: CanvasRenderingContext2D, style: string, color: string): void {
@@ -400,15 +578,39 @@ export function drawProduct(
   ctx.translate(0, bob);
   switch (id) {
     case "refri":
+      // Garrafa curva + folha (forma diferente do Zero).
       bottle(ctx, s, "#2f8f4a", "#e3b23c");
       leaf(ctx, s);
+      ctx.fillStyle = "#e3b23c";
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.08, s * 0.08);
+      ctx.lineTo(0, -s * 0.06);
+      ctx.lineTo(s * 0.08, s * 0.08);
+      ctx.closePath();
+      ctx.fill();
       break;
     case "refriZero":
+      // Corpo mais reto + faixa prata + "0" grande (símbolo, não só cor).
       bottle(ctx, s, "#1a3324", "#d8d8d8");
+      ctx.fillStyle = "#c8c8c8";
+      roundRect(ctx, -s * 0.2, -s * 0.02, s * 0.4, s * 0.1, 2);
+      ctx.fill();
       ctx.fillStyle = "#f6f3ea";
-      ctx.font = `800 ${s * 0.26}px Nunito`;
+      ctx.font = `800 ${s * 0.28}px Nunito`;
       ctx.textAlign = "center";
-      ctx.fillText("0", 0, s * 0.1);
+      ctx.fillText("0", 0, s * 0.22);
+      // Tampinha hexagonal (≠ redonda do guaraná)
+      ctx.fillStyle = "#d8d8d8";
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI / 3) * i - Math.PI / 6;
+        const px = Math.cos(a) * s * 0.1;
+        const py = -s * 0.38 + Math.sin(a) * s * 0.06;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
       break;
     case "suco":
       carton(ctx, s, "#e07a2a", "#f6e27a");
@@ -418,19 +620,69 @@ export function drawProduct(
       ctx.fill();
       break;
     case "leite":
+      // Caixa alta + faixa azul + "L" (≠ losango do creme).
       carton(ctx, s, "#f6f3ea", "#3b6fb6");
       ctx.fillStyle = "#3b6fb6";
-      ctx.font = `800 ${s * 0.18}px Nunito`;
+      roundRect(ctx, -s * 0.22, s * 0.18, s * 0.44, s * 0.08, 2);
+      ctx.fill();
+      ctx.font = `800 ${s * 0.2}px Nunito`;
       ctx.textAlign = "center";
-      ctx.fillText("L", 0, s * 0.12);
+      ctx.fillText("L", 0, s * 0.1);
+      break;
+    case "cremeLeite":
+      // Caixa mais baixa + losango dourado (forma ≠ leite).
+      ctx.fillStyle = "#e8d4a8";
+      roundRect(ctx, -s * 0.24, -s * 0.16, s * 0.48, s * 0.44, 5);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,0.28)";
+      ctx.lineWidth = Math.max(1.5, s * 0.04);
+      roundRect(ctx, -s * 0.24, -s * 0.16, s * 0.48, s * 0.44, 5);
+      ctx.stroke();
+      ctx.fillStyle = "#c68642";
+      roundRect(ctx, -s * 0.24, -s * 0.3, s * 0.48, s * 0.14, 3);
+      ctx.fill();
+      ctx.fillStyle = "#e3b23c";
+      ctx.beginPath();
+      ctx.moveTo(0, -s * 0.06);
+      ctx.lineTo(s * 0.12, s * 0.06);
+      ctx.lineTo(0, s * 0.18);
+      ctx.lineTo(-s * 0.12, s * 0.06);
+      ctx.closePath();
+      ctx.fill();
       break;
     case "agua":
+      // Garrafa lisa + gota (≠ ondas/bolhas do gás).
       bottle(ctx, s, "#9fd4ee", "#2f6b9a");
       ctx.fillStyle = "rgba(255,255,255,0.75)";
       ctx.beginPath();
       ctx.arc(-s * 0.06, 0, s * 0.05, 0, Math.PI * 2);
       ctx.arc(s * 0.08, -s * 0.06, s * 0.04, 0, Math.PI * 2);
       ctx.fill();
+      // Gota
+      ctx.fillStyle = "#2f6b9a";
+      ctx.beginPath();
+      ctx.moveTo(0, -s * 0.12);
+      ctx.quadraticCurveTo(s * 0.1, s * 0.02, 0, s * 0.14);
+      ctx.quadraticCurveTo(-s * 0.1, s * 0.02, 0, -s * 0.12);
+      ctx.fill();
+      break;
+    case "aguaGas":
+      // Garrafa azul-escura + ondas + bolhas (símbolo ≠ gota).
+      bottle(ctx, s, "#2a6f9a", "#e3b23c");
+      ctx.strokeStyle = "#9fd4ee";
+      ctx.lineWidth = Math.max(1.4, s * 0.035);
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.moveTo(-s * 0.14, -s * 0.08 + i * s * 0.1);
+        ctx.quadraticCurveTo(0, -s * 0.14 + i * s * 0.1, s * 0.14, -s * 0.08 + i * s * 0.1);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      for (const [ox, oy, r] of [[-0.08, 0.18, 0.035], [0.06, 0.12, 0.045], [0.02, 0.22, 0.028]]) {
+        ctx.beginPath();
+        ctx.arc(s * ox, s * oy, s * r, 0, Math.PI * 2);
+        ctx.fill();
+      }
       break;
     case "pao": {
       // pão francês
@@ -560,20 +812,35 @@ export function drawProduct(
       break;
     }
     case "detergente":
+      // Triângulo amarelo + bico reto (≠ flor do amaciante).
       bottle(ctx, s, "#3b6fb6", "#f6f3ea");
       ctx.fillStyle = "#f6e27a";
       ctx.beginPath();
-      ctx.moveTo(0, -s * 0.08);
-      ctx.lineTo(s * 0.1, s * 0.08);
-      ctx.lineTo(-s * 0.1, s * 0.08);
+      ctx.moveTo(0, -s * 0.1);
+      ctx.lineTo(s * 0.12, s * 0.1);
+      ctx.lineTo(-s * 0.12, s * 0.1);
       ctx.closePath();
       ctx.fill();
+      ctx.strokeStyle = "#f6f3ea";
+      ctx.lineWidth = Math.max(1.5, s * 0.04);
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.12, -s * 0.2);
+      ctx.lineTo(s * 0.12, -s * 0.2);
+      ctx.stroke();
       break;
     case "amaciante":
+      // Flor / pétalas (forma ≠ triângulo) + rosa.
       bottle(ctx, s, "#e07a8d", "#f6f3ea");
       ctx.fillStyle = "#fff";
+      for (let i = 0; i < 5; i++) {
+        const a = (Math.PI * 2 * i) / 5 - Math.PI / 2;
+        ctx.beginPath();
+        ctx.ellipse(Math.cos(a) * s * 0.08, Math.sin(a) * s * 0.08 + s * 0.02, s * 0.06, s * 0.045, a, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = "#f6e27a";
       ctx.beginPath();
-      ctx.ellipse(0, s * 0.02, s * 0.12, s * 0.08, 0, 0, Math.PI * 2);
+      ctx.arc(0, s * 0.02, s * 0.04, 0, Math.PI * 2);
       ctx.fill();
       break;
   }
@@ -678,22 +945,6 @@ function drawParticles(ctx: CanvasRenderingContext2D, parts: Particle[], layout:
     }
     ctx.restore();
   }
-}
-
-function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, max: number, lh: number): void {
-  const words = text.split(" ");
-  let line = "";
-  let yy = y;
-  ctx.textAlign = "center";
-  for (const word of words) {
-    const test = line ? `${line} ${word}` : word;
-    if (ctx.measureText(test).width > max) {
-      ctx.fillText(line, x, yy, max);
-      line = word;
-      yy += lh;
-    } else line = test;
-  }
-  if (line) ctx.fillText(line, x, yy, max);
 }
 
 function clamp01(v: number): number {

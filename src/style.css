@@ -995,3 +995,127 @@ body.tutor-lookalike #scene::after {
     font-size: 13px;
   }
 }
+
+
+/* —— Loja da esquina (cosméticos) —— */
+.shop-screen .lede {
+  margin-bottom: 12px;
+}
+
+.shop-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(12, 10, 8, 0.55);
+  border: 1px solid rgba(232, 220, 200, 0.12);
+  max-height: min(52vh, 420px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.cos-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cos-label {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold, #e3b23c);
+}
+
+.cos-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+@media (min-width: 560px) {
+  .cos-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.cos-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  text-align: left;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1.5px solid rgba(232, 220, 200, 0.14);
+  background: rgba(232, 220, 200, 0.04);
+  color: var(--cream, #f7ecd4);
+  cursor: pointer;
+  font: inherit;
+  min-height: 64px;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease;
+}
+
+.cos-card:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.cos-card.on {
+  border-color: var(--cos-badge, #e3b23c);
+  background: rgba(227, 178, 60, 0.12);
+  box-shadow: 0 0 0 1px var(--cos-badge-soft, rgba(227, 178, 60, 0.35));
+}
+
+.cos-card.locked,
+.cos-card:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.cos-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  background: linear-gradient(145deg, var(--sw, #e3b23c), color-mix(in srgb, var(--sw, #e3b23c) 60%, #1a140e));
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+
+.cos-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cos-meta b {
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.cos-meta small {
+  font-size: 11px;
+  color: var(--muted, #a89880);
+  line-height: 1.25;
+}
+
+.cos-lock {
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #e07a2a;
+  letter-spacing: 0.02em;
+}
+
+.title-screen .row {
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.hud-shop {
+  color: var(--cos-badge, #e3b23c);
+}

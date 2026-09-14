@@ -1,11 +1,20 @@
 import { GAME_TITLE } from "../config";
-import type { RunRecord, TurnGoal } from "../types";
+import {
+  BADGES,
+  SHELVES,
+  SIGNS,
+  isCosmeticUnlocked,
+  type CosmeticItem,
+  type EquippedCosmetics,
+} from "../data/cosmetics";
+import type { RunRecord, SaveData, TurnGoal } from "../types";
 import type { TurnSummary } from "../game/sim";
 
 export type UiAction =
   | { type: "play" }
   | { type: "how" }
   | { type: "credits" }
+  | { type: "shop" }
   | { type: "back" }
   | { type: "pause" }
   | { type: "resume" }
@@ -16,7 +25,8 @@ export type UiAction =
   | { type: "begin" }
   | { type: "tutorialNext" }
   | { type: "tutorialSkip" }
-  | { type: "nextTurn" };
+  | { type: "nextTurn" }
+  | { type: "equip"; slot: "sign" | "shelf" | "badge"; id: string };
 
 export class Screens {
   root: HTMLElement;
@@ -31,7 +41,14 @@ export class Screens {
       const now = performance.now();
       if (now - this.lastFire < 220) return;
       this.lastFire = now;
-      this.onAction({ type: t.dataset.act as UiAction["type"] });
+      const act = t.dataset.act as UiAction["type"];
+      if (act === "equip") {
+        const slot = t.dataset.slot as "sign" | "shelf" | "badge" | undefined;
+        const id = t.dataset.id;
+        if (slot && id) this.onAction({ type: "equip", slot, id });
+        return;
+      }
+      this.onAction({ type: act });
     });
   }
 
@@ -99,9 +116,44 @@ export class Screens {
         <div class="screen-foot col">
           <button type="button" class="btn primary cta" data-act="play">Abrir a loja</button>
           <div class="row">
+            <button type="button" class="btn ghost" data-act="shop">Loja da esquina</button>
             <button type="button" class="btn ghost" data-act="how">Como jogar</button>
             <button type="button" class="btn ghost" data-act="credits">Créditos</button>
           </div>
+        </div>
+      </section>`);
+  }
+
+  private cosmeticRow(title: string, items: readonly CosmeticItem[], equippedId: string, save: SaveData): string {
+    const cards = items
+      .map((c) => {
+        const unlocked = isCosmeticUnlocked(c, save);
+        const on = equippedId === c.id;
+        const lock = unlocked ? "" : `<span class="cos-lock">${c.hint || "Bloqueado"}</span>`;
+        return `<button type="button" class="cos-card${on ? " on" : ""}${unlocked ? "" : " locked"}" data-act="equip" data-slot="${c.slot}" data-id="${c.id}" ${unlocked ? "" : "disabled"} aria-pressed="${on}" aria-label="${c.name}">
+          <span class="cos-swatch" style="--sw:${c.swatch}"></span>
+          <span class="cos-meta"><b>${c.name}</b><small>${c.blurb}</small>${lock}</span>
+        </button>`;
+      })
+      .join("");
+    return `<div class="cos-section"><div class="cos-label">${title}</div><div class="cos-grid">${cards}</div></div>`;
+  }
+
+  shop(save: SaveData, equipped: EquippedCosmetics): void {
+    this.set(`
+      <section class="screen solid shop-screen">
+        <div class="screen-body">
+          <div class="eyebrow">Cosméticos · só visual</div>
+          <h2>Loja da esquina</h2>
+          <p class="lede">Desbloqueie com progresso. Sem paywall, sem mudar a dificuldade.</p>
+          <div class="shop-panel premium-diary">
+            ${this.cosmeticRow("Letreiro", SIGNS, equipped.sign, save)}
+            ${this.cosmeticRow("Prateleira", SHELVES, equipped.shelf, save)}
+            ${this.cosmeticRow("Crachá / avental", BADGES, equipped.badge, save)}
+          </div>
+        </div>
+        <div class="screen-foot">
+          <button type="button" class="btn primary" data-act="back">Voltar</button>
         </div>
       </section>`);
   }
@@ -120,7 +172,7 @@ export class Screens {
             <p><b>Metas:</b> cada turno tem 3 objetivos. Cumprir rende ★ estrelas no resumo.</p>
             <p><b>Celular:</b> só o dedo. Toque vazio ou <b>Soltar</b> larga o item. Use <b>1x/2x/3x</b> no topo pra acelerar.</p>
             <p><b>Computador:</b> clique, arraste, ou teclas <b>1–8</b> (e Q W E R) nos produtos. <b>3</b> pega o terceiro item, não pausa. ← → escolhe o cliente, <b>Espaço</b> entrega no cliente marcado, <b>Esc</b> solta o item (ou pausa se a mão estiver vazia), botão direito também solta, M muda o som. O botão <b>1x/2x/3x</b> acelera o expediente.</p>
-            <p>Olho no sósia: <b>Refri</b> não é <b>Refri Zero</b>. <b>Detergente</b> não é <b>Amaciante</b>.</p>
+            <p>Olho no sósia (forma + símbolo, não só cor): <b>Refri</b> ≠ <b>Zero</b>, <b>Leite</b> ≠ <b>Creme</b>, <b>Água</b> ≠ <b>c/ Gás</b>, <b>Detergente</b> ≠ <b>Amaciante</b>.</p>
           </div>
         </div>
         <div class="screen-foot">
@@ -160,7 +212,7 @@ export class Screens {
       },
       {
         title: "Cuidado com sósias",
-        body: "Refri não é Zero. Detergente não é Amaciante. O rótulo importa.",
+        body: "Refri ≠ Zero, Leite ≠ Creme, Água ≠ c/ Gás, Detergente ≠ Amaciante. Olhe a forma e o símbolo.",
         tip: "Errar zera o combo e gasta paciência.",
         spot: "lookalike",
       },
