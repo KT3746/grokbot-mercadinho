@@ -34,8 +34,36 @@ export class Sfx {
     this.muted = muted;
     if (this.master) this.master.gain.value = muted ? 0 : 0.3;
     // Mute zera o master; timers podem continuar sem audível. Se mutado, pausa timers pra economizar.
-    if (muted) this.pauseBedTimers();
-    else if (this.bedOn) this.resumeBedTimers();
+    if (muted) {
+      this.pauseBedTimers();
+      if (this.ctx && this.bedGain) {
+        try {
+          this.bedGain.gain.cancelScheduledValues(this.ctx.currentTime);
+          this.bedGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+        } catch {
+          /* ignore */
+        }
+      }
+      if (this.ctx && this.rushGain) {
+        try {
+          this.rushGain.gain.cancelScheduledValues(this.ctx.currentTime);
+          this.rushGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+        } catch {
+          /* ignore */
+        }
+      }
+    } else if (this.bedOn) {
+      if (this.ctx && this.bedGain) {
+        try {
+          this.bedGain.gain.cancelScheduledValues(this.ctx.currentTime);
+          this.bedGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+          this.bedGain.gain.exponentialRampToValueAtTime(0.085, this.ctx.currentTime + 0.35);
+        } catch {
+          /* ignore */
+        }
+      }
+      this.resumeBedTimers();
+    }
   }
 
   toggleMute(): boolean {
@@ -189,7 +217,11 @@ export class Sfx {
     this.rushGain.connect(this.master);
 
     const now = this.ctx.currentTime;
-    this.bedGain.gain.exponentialRampToValueAtTime(0.085, now + 0.6);
+    if (this.muted) {
+      this.bedGain.gain.value = 0.0001;
+    } else {
+      this.bedGain.gain.exponentialRampToValueAtTime(0.085, now + 0.6);
+    }
 
     if (!this.muted) this.resumeBedTimers();
   }
@@ -199,35 +231,75 @@ export class Sfx {
     this.bedOn = false;
     this.pauseBedTimers();
     const ctx = this.ctx;
-    if (ctx && this.bedGain) {
+    // Captura os nós atuais: um startBed logo em seguida não pode ser
+    // desconectado pelo timeout deste stop (race clássica no retry rápido).
+    const oldBed = this.bedGain;
+    const oldRush = this.rushGain;
+    this.bedGain = null;
+    this.rushGain = null;
+    if (ctx && oldBed) {
       try {
-        this.bedGain.gain.cancelScheduledValues(ctx.currentTime);
-        this.bedGain.gain.setValueAtTime(Math.max(0.0001, this.bedGain.gain.value), ctx.currentTime);
-        this.bedGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.25);
+        oldBed.gain.cancelScheduledValues(ctx.currentTime);
+        oldBed.gain.setValueAtTime(Math.max(0.0001, oldBed.gain.value), ctx.currentTime);
+        oldBed.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.25);
       } catch {
         /* ignore */
       }
     }
-    if (ctx && this.rushGain) {
+    if (ctx && oldRush) {
       try {
-        this.rushGain.gain.cancelScheduledValues(ctx.currentTime);
-        this.rushGain.gain.setValueAtTime(Math.max(0.0001, this.rushGain.gain.value), ctx.currentTime);
-        this.rushGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.2);
+        oldRush.gain.cancelScheduledValues(ctx.currentTime);
+        oldRush.gain.setValueAtTime(Math.max(0.0001, oldRush.gain.value), ctx.currentTime);
+        oldRush.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.2);
       } catch {
         /* ignore */
       }
     }
     window.setTimeout(() => {
       try {
-        this.bedGain?.disconnect();
-        this.rushGain?.disconnect();
+        oldBed?.disconnect();
+        oldRush?.disconnect();
       } catch {
         /* ignore */
       }
-      this.bedGain = null;
-      this.rushGain = null;
     }, 320);
     this.pressure = 0;
+  }
+
+  /** Pausa plucks do bed (menu de pausa) sem desligar o estado. */
+  hushBed(): void {
+    this.pauseBedTimers();
+    if (!this.ctx) return;
+    if (this.bedGain) {
+      try {
+        this.bedGain.gain.cancelScheduledValues(this.ctx.currentTime);
+        this.bedGain.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.08);
+      } catch {
+        /* ignore */
+      }
+    }
+    if (this.rushGain) {
+      try {
+        this.rushGain.gain.cancelScheduledValues(this.ctx.currentTime);
+        this.rushGain.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.08);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  /** Volta o bed após Continuar (respeita mute). */
+  unhushBed(): void {
+    if (!this.bedOn || this.muted) return;
+    if (this.ctx && this.bedGain) {
+      try {
+        this.bedGain.gain.cancelScheduledValues(this.ctx.currentTime);
+        this.bedGain.gain.setTargetAtTime(0.085, this.ctx.currentTime, 0.12);
+      } catch {
+        /* ignore */
+      }
+    }
+    this.resumeBedTimers();
   }
 
   /** 0..1 — sobe a camada de rush/caos/pressão. */

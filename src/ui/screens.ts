@@ -45,7 +45,9 @@ export class Screens {
       if (act === "equip") {
         const slot = t.dataset.slot as "sign" | "shelf" | "badge" | undefined;
         const id = t.dataset.id;
-        if (slot && id) this.onAction({ type: "equip", slot, id });
+        if (!slot || !id) return;
+        if (t.classList.contains("locked") || (t as HTMLButtonElement).disabled) return;
+        this.onAction({ type: "equip", slot, id });
         return;
       }
       this.onAction({ type: act });
@@ -258,6 +260,7 @@ export class Screens {
           <ul class="goal-list">${goalsHtml}</ul>
           <div class="stack">
             <button type="button" class="btn primary cta" data-act="nextTurn">Seguir · ${nextLabel}</button>
+            <p class="lede summary-hint">Toque em Seguir · Enter / Espaço também avança.</p>
           </div>
         </div>
       </section>`);

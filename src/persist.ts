@@ -41,16 +41,33 @@ export function loadSave(): SaveData {
     const unlocked = Array.isArray(parsed.unlockedCosmetics)
       ? parsed.unlockedCosmetics.filter((x): x is string => typeof x === "string").slice(0, 64)
       : ["sign-classic", "shelf-verde", "badge-padrao"];
+    const starters = ["sign-classic", "shelf-verde", "badge-padrao"];
+    const unlockedMerged = [...new Set([...starters, ...(unlocked.length ? unlocked : [])])].slice(0, 64);
+    const best = typeof parsed.best === "number" && Number.isFinite(parsed.best) ? Math.max(0, parsed.best) : 0;
+    const bestTurno =
+      typeof parsed.bestTurno === "number" && Number.isFinite(parsed.bestTurno)
+        ? Math.max(1, Math.floor(parsed.bestTurno))
+        : 1;
+    const plays =
+      typeof parsed.plays === "number" && Number.isFinite(parsed.plays) ? Math.max(0, Math.floor(parsed.plays)) : 0;
+    const bestStars =
+      typeof parsed.bestStars === "number" && Number.isFinite(parsed.bestStars)
+        ? Math.max(0, Math.floor(parsed.bestStars))
+        : 0;
+    const totalStars =
+      typeof parsed.totalStars === "number" && Number.isFinite(parsed.totalStars)
+        ? Math.max(0, Math.floor(parsed.totalStars))
+        : 0;
     return {
-      best: typeof parsed.best === "number" ? parsed.best : 0,
-      bestTurno: typeof parsed.bestTurno === "number" ? parsed.bestTurno : 1,
+      best,
+      bestTurno,
       muted: parsed.muted === true,
       seenHow: parsed.seenHow === true,
-      plays: typeof parsed.plays === "number" ? parsed.plays : 0,
-      bestStars: typeof parsed.bestStars === "number" ? parsed.bestStars : 0,
-      totalStars: typeof parsed.totalStars === "number" ? parsed.totalStars : 0,
+      plays,
+      bestStars,
+      totalStars,
       history: sanitizeHistory(parsed.history),
-      unlockedCosmetics: unlocked.length ? unlocked : ["sign-classic", "shelf-verde", "badge-padrao"],
+      unlockedCosmetics: unlockedMerged,
       equipped: {
         sign: typeof equippedRaw.sign === "string" ? equippedRaw.sign : "sign-classic",
         shelf: typeof equippedRaw.shelf === "string" ? equippedRaw.shelf : "shelf-verde",

@@ -180,9 +180,6 @@ body.play-guard #btn-pause,
   pointer-events: auto;
 }
 
-#hud.play-guard .icon-btn {
-  pointer-events: none !important;
-}
 
 #btn-pause {
   position: relative;
@@ -416,11 +413,17 @@ body.play-guard #banner {
 
 .screen {
   min-height: 100%;
+  max-height: 100%;
+  max-height: 100dvh;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   padding: calc(22px + var(--safe-t)) 22px calc(24px + var(--safe-b));
   pointer-events: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   background:
     radial-gradient(ellipse 80% 50% at 50% -10%, rgba(227, 178, 60, 0.12), transparent 55%),
     linear-gradient(180deg, #1a1410 0%, #0e0a08 55%, #0a0806 100%);
@@ -436,6 +439,8 @@ body.play-guard #banner {
 
 .screen-body {
   max-width: 560px;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .topbar {
@@ -508,6 +513,11 @@ h2 {
   gap: 10px;
   flex-wrap: wrap;
   max-width: 560px;
+  flex: 0 0 auto;
+  position: sticky;
+  bottom: 0;
+  padding-top: 8px;
+  background: linear-gradient(180deg, transparent, rgba(14, 10, 8, 0.96) 30%);
 }
 
 .screen-foot.col {
@@ -580,13 +590,22 @@ h2 {
   inset: 0;
   display: grid;
   place-items: center;
+  align-content: center;
   background: rgba(8, 6, 4, 0.72);
-  padding: 20px;
+  padding: max(12px, env(safe-area-inset-top, 0px)) 16px max(16px, env(safe-area-inset-bottom, 0px));
   backdrop-filter: blur(2px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .panel {
   width: min(420px, 100%);
+  max-height: min(92dvh, 920px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: linear-gradient(180deg, #1c1612 0%, #14100c 100%);
   border: 2px solid rgba(227, 178, 60, 0.7);
   border-radius: 22px;
@@ -1118,4 +1137,32 @@ body.tutor-lookalike #scene::after {
 
 .hud-shop {
   color: var(--cos-badge, #e3b23c);
+}
+
+
+/* Toque: Speed/Soltar com alvo confortável sem estourar o HUD. */
+@media (pointer: coarse) {
+  #btn-speed,
+  #btn-drop {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px 12px;
+  }
+}
+
+/* Sumário/tutorial: CTA sempre no fluxo rolável. */
+.summary-overlay .stack,
+.tutorial-overlay .stack {
+  position: sticky;
+  bottom: 0;
+  padding-top: 8px;
+  background: linear-gradient(180deg, transparent, #14100c 28%);
+}
+
+.summary-hint {
+  margin: 0;
+  font-size: 12px;
+  text-align: center;
+  color: var(--muted);
+  max-width: none;
 }

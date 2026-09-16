@@ -129,18 +129,23 @@ export class Game {
     requestAnimationFrame(loop);
   }
 
-  /** Bloqueia Pausa (HUD) e, se pedido, o auto-pause de aba por alguns ms. */
+  /** Após overlays: sobe o canvas brevemente e evita auto-pause de aba. */
   private playGuard(pauseUiMs: number, visibilityMs = 0): void {
     const now = performance.now();
     this.ignorePauseUiUntil = Math.max(this.ignorePauseUiUntil, now + pauseUiMs);
     if (visibilityMs > 0) {
       this.ignoreVisibilityUntil = Math.max(this.ignoreVisibilityUntil, now + visibilityMs);
     }
+    // play-guard curto só depois de overlay (ghost click iOS). Não usa em todo toque.
     this.hud.classList.add("play-guard");
     document.body.classList.add("play-guard");
-    const pauseBtn = document.getElementById("btn-pause") as HTMLButtonElement | null;
-    if (pauseBtn) pauseBtn.disabled = true;
     this.scheduleGuardClear();
+  }
+
+  /** Só adia o auto-pause de aba — HUD (1x/2x/3x, Soltar) continua clicável. */
+  private bumpVisibilityGuard(ms: number): void {
+    const now = performance.now();
+    this.ignoreVisibilityUntil = Math.max(this.ignoreVisibilityUntil, now + ms);
   }
 
   private scheduleGuardClear(): void {
@@ -152,8 +157,6 @@ export class Game {
   private clearPlayGuard(): void {
     this.hud.classList.remove("play-guard");
     document.body.classList.remove("play-guard");
-    const pauseBtn = document.getElementById("btn-pause") as HTMLButtonElement | null;
-    if (pauseBtn) pauseBtn.disabled = false;
   }
 
   private pauseUiBlocked(): boolean {
@@ -207,7 +210,8 @@ export class Game {
     this.canvas.addEventListener(
       "touchstart",
       () => {
-        this.playGuard(500, 500);
+        // Só evita auto-pause de aba no gesto; não cobre o HUD (Speed/Soltar).
+        this.bumpVisibilityGuard(400);
       },
       { passive: true },
     );
@@ -250,7 +254,7 @@ export class Game {
       return;
     }
     if (e.button !== 0 && e.pointerType === "mouse") return;
-    this.playGuard(500, 500);
+    this.bumpVisibilityGuard(400);
     void this.audio.unlock();
     this.run.lockQueue = true;
     const p = this.pos(e);
@@ -382,6 +386,16 @@ export class Game {
       }
       return;
     }
+    if (this.view === "summary" && (e.code === "Enter" || e.code === "Space" || e.code === "Escape")) {
+      e.preventDefault();
+      this.continueAfterSummary();
+      return;
+    }
+    if (this.view === "tutorial" && (e.code === "Enter" || e.code === "Space")) {
+      e.preventDefault();
+      this.handle({ type: "tutorialNext" });
+      return;
+    }
     if (e.code === "Escape") {
       if (this.view === "play" && (this.run?.tutorial || this.run?.awaitingSummary)) return;
       if (this.view === "summary" || this.view === "tutorial") return;
@@ -485,11 +499,16 @@ export class Game {
         this.audio.wrong();
         this.buzz([30, 40, 45]);
         if (this.run) this.run.shake = Math.max(this.run.shake, 14);
-        const msg = ev.mixup
-          ? `Ops — ${ev.mixup}. Era o outro.`
-          : (TOASTS.wrong[Math.floor(Math.random() * TOASTS.wrong.length)] ?? "Ops. Era o outro.");
-        this.toast(msg, 1700);
-        this.popWrong(ev.mixup ? `Mistura: ${ev.mixup}` : msg, at);
+        let msg =
+          TOASTS.wrong[Math.floor(Math.random() * TOASTS.wrong.length)] ?? "Ops. Era o outro.";
+        if (ev.mixup) {
+          const parts = ev.mixup.split(" ≠ ");
+          const given = parts[0]?.trim() || "errado";
+          const want = parts[1]?.trim() || "o outro";
+          msg = `Sósia! Pediu ${want} — você deu ${given}.`;
+        }
+        this.toast(msg, 1900);
+        this.popWrong(ev.mixup ? ev.mixup : msg, at);
         break;
       }
       case "rage":
@@ -523,6 +542,10 @@ export class Game {
     this.clearDrag();
     this.view = "summary";
     this.audio.setPressure(0);
+    this.audio.hushBed();
+    this.bannerEl.hidden = true;
+    this.toastEl.hidden = true;
+    this.toastEl.replaceChildren();
     this.ui.turnSummary(summary);
     this.syncChrome();
     this.audio.shift();
@@ -538,7 +561,8 @@ export class Game {
     this.applyEvent(ev);
     this.resize();
     this.syncHud();
-    this.playGuard(300, 500);
+    this.audio.unhushBed();
+    this.playGuard(180, 400);
     document.getElementById("btn-speed")?.blur();
   }
 
@@ -757,7 +781,12 @@ export class Game {
     writeSave(this.save);
     this.tutorialStep = 0;
     document.body.classList.remove("tutor-shelf", "tutor-lookalike", "tutor-speed");
-    if (!this.run) return;
+    this.hud.hidden = true;
+    if (!this.run) {
+      // Save marcado; próxima partida não reabre o tour.
+      this.showTitle();
+      return;
+    }
     this.view = "play";
     this.beginShift();
     if (skipped) {
@@ -788,7 +817,7 @@ export class Game {
     this.audio.shift();
     this.audio.startBed();
     this.audio.setPressure(0);
-    this.playGuard(300, 500);
+    this.playGuard(180, 400);
   }
 
   private pause(): void {
@@ -797,6 +826,7 @@ export class Game {
     this.clearDrag();
     this.view = "paused";
     this.audio.setPressure(0);
+    this.audio.hushBed();
     this.ui.pause(this.save.muted);
     this.syncChrome();
   }
@@ -806,7 +836,8 @@ export class Game {
     this.view = "play";
     this.ui.root.innerHTML = "";
     this.syncChrome();
-    this.playGuard(300, 500);
+    this.audio.unhushBed();
+    this.playGuard(180, 400);
     document.getElementById("btn-speed")?.blur();
   }
 
@@ -961,11 +992,12 @@ export class Game {
 
   private syncChrome(): void {
     const playing = this.view === "play";
+    // HUD só no expediente ativo — sumário/tutorial usam overlay (evita botão fora da tela + clash).
     const showHud =
-      (playing || this.view === "summary" || this.view === "tutorial") &&
+      playing &&
       !!this.run &&
       !this.run.tutorial &&
-      this.view !== "tutorial";
+      !this.run.awaitingSummary;
     document.body.classList.toggle("is-play", playing && !this.run?.tutorial && !this.run?.awaitingSummary);
     document.body.dataset.view = this.view;
     this.hud.hidden = !showHud;
