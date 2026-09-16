@@ -714,6 +714,13 @@ export class Game {
     if (!force && this.layout && this.layoutKey === key) return;
     this.layoutKey = key;
     this.layout = computeLayout(this.cssW, this.cssH, this.run.turno, slots, band);
+    // Toasts fora dos cartões de pedido: sob a fila (retrato) ou no topo da prateleira (paisagem).
+    const q = this.layout.queue;
+    const toastTop = this.layout.landscape
+      ? Math.round(this.layout.shelves.y + 8)
+      : Math.round(q.y + q.h + 6);
+    const clamped = Math.max(56, Math.min(toastTop, Math.max(56, this.cssH - 88)));
+    document.documentElement.style.setProperty("--toast-top", `${clamped}px`);
   }
 
   private refreshCosmetics(): void {
