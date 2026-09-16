@@ -87,11 +87,13 @@ export function computeLayout(w: number, h: number, turno: number, slotCount: nu
   const queueH = Math.min(168, Math.max(110, h * 0.22));
   const queue: Rect = { x: 8, y: hudH + safeT, w: w - 16, h: queueH };
   const gap = 8;
+  // Mais folga inferior no celular — grade densa (turno 2+) não cola na borda.
+  const bottomPad = 24;
   const shelves: Rect = {
     x: 8,
     y: queue.y + queue.h + gap,
     w: w - 16,
-    h: Math.max(200, h - (queue.y + queue.h + gap + 10)),
+    h: Math.max(200, h - (queue.y + queue.h + gap + bottomPad)),
   };
   const slots: Rect[] = [];
   const sw = (queue.w - 8) / maxSlots;
@@ -126,7 +128,12 @@ function gridCells(shelves: Rect, turno: number, landscape: boolean): ShelfCell[
   const rows = Math.ceil(n / cols);
   const gap = landscape ? 8 : 6;
   const cw = (shelves.w - gap * (cols + 1)) / cols;
-  const ch = (shelves.h - gap * (rows + 1)) / rows;
+  const fillCh = (shelves.h - gap * (rows + 1)) / rows;
+  // Celular denso (4 colunas): tiles um pouco mais baixos, alvo mínimo ~44px, ar embaixo.
+  const shrink = !landscape && n > 8 ? 0.92 : !landscape ? 0.96 : 1;
+  const ch = Math.max(44, fillCh * shrink);
+  const usedH = rows * ch + (rows + 1) * gap;
+  const y0 = shelves.y + gap + Math.max(0, (shelves.h - usedH) * 0.08);
   const cells: ShelfCell[] = [];
   ids.forEach((id, i) => {
     const c = i % cols;
@@ -135,7 +142,7 @@ function gridCells(shelves: Rect, turno: number, landscape: boolean): ShelfCell[
       id,
       rect: {
         x: shelves.x + gap + c * (cw + gap),
-        y: shelves.y + gap + r * (ch + gap),
+        y: y0 + r * (ch + gap),
         w: cw,
         h: ch,
       },

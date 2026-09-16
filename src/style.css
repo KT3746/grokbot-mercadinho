@@ -372,8 +372,8 @@ body.play-guard #btn-pause,
 }
 
 .toast-stack {
-  /* Abaixo da faixa do banner, sem cobrir a fila do meio da tela. */
-  top: calc(var(--safe-t) + var(--hud-band, 112px) + 52px);
+  /* Posição vinda do layout (--toast-top). Fallback: sob o HUD, sem cobrir a fila. */
+  top: var(--toast-top, calc(var(--safe-t) + var(--hud-band, 112px) + 8px));
   bottom: auto;
   display: flex;
   flex-direction: column;
@@ -382,19 +382,20 @@ body.play-guard #btn-pause,
 }
 
 .toast-stack .toast {
-  background: var(--panel);
+  background: rgba(28, 20, 14, 0.94);
   color: var(--cream);
-  border: 2px solid rgba(227, 178, 60, 0.4);
+  border: 2px solid rgba(227, 178, 60, 0.5);
   border-radius: 999px;
   padding: 6px 14px;
   font-weight: 700;
   font-size: 14px;
   max-width: 100%;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
 }
 
 #banner {
-  /* Antes ficava em 38% e tapava a fila no celular. */
-  top: calc(var(--safe-t) + var(--hud-band, 112px) + 6px);
+  /* Faixa curta sob o HUD — não cobre o balão de pedido. */
+  top: calc(var(--safe-t) + var(--hud-band, 112px) + 4px);
   font-family: var(--font-display);
   font-size: clamp(15px, 4.2vw, 20px);
   line-height: 1.25;
@@ -649,12 +650,19 @@ h2 {
     justify-self: stretch;
   }
   .toast-stack {
-    top: calc(var(--safe-t) + var(--hud-band, 168px) + 52px);
+    top: var(--toast-top, calc(var(--safe-t) + var(--hud-band, 168px) + 8px));
     max-width: min(88vw, 300px);
   }
   #banner {
-    top: calc(var(--safe-t) + var(--hud-band, 168px) + 6px);
+    top: calc(var(--safe-t) + var(--hud-band, 168px) + 4px);
     max-width: min(92vw, 300px);
+  }
+  /* Em telas baixas, se a fila for alta, toast sobe um pouco menos e fica legível com banner. */
+  @supports (height: 100dvh) {
+    .toast-stack {
+      max-height: 28dvh;
+      overflow: hidden;
+    }
   }
 }
 
@@ -1088,8 +1096,24 @@ body.tutor-lookalike #scene::after {
 
 .cos-card.locked,
 .cos-card:disabled {
-  opacity: 0.55;
+  /* Sem opacity no card inteiro — o requisito de unlock precisa ler bem. */
+  opacity: 1;
   cursor: not-allowed;
+  background: rgba(232, 220, 200, 0.03);
+  border-color: rgba(232, 220, 200, 0.1);
+}
+
+.cos-card.locked .cos-swatch {
+  opacity: 0.48;
+  filter: grayscale(0.3);
+}
+
+.cos-card.locked .cos-meta b {
+  color: rgba(247, 236, 212, 0.78);
+}
+
+.cos-card.locked .cos-meta small {
+  color: rgba(168, 152, 128, 0.78);
 }
 
 .cos-swatch {
@@ -1122,11 +1146,19 @@ body.tutor-lookalike #scene::after {
 }
 
 .cos-lock {
-  margin-top: 4px;
-  font-size: 10px;
+  margin-top: 5px;
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 11px;
   font-weight: 800;
-  color: #e07a2a;
+  color: #ffe08a;
   letter-spacing: 0.02em;
+  line-height: 1.3;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  background: rgba(227, 178, 60, 0.18);
+  border: 1px solid rgba(255, 200, 100, 0.55);
+  border-radius: 999px;
+  padding: 2px 8px;
 }
 
 .title-screen .row {
