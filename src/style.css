@@ -372,8 +372,8 @@ body.play-guard #btn-pause,
 }
 
 .toast-stack {
-  /* Posição vinda do layout (--toast-top). Fallback: sob o HUD, sem cobrir a fila. */
-  top: var(--toast-top, calc(var(--safe-t) + var(--hud-band, 112px) + 8px));
+  /* Posição vinda do layout (--toast-top). Fallback: sob o HUD com folga do "Na mão". */
+  top: var(--toast-top, calc(var(--safe-t) + var(--hud-band, 112px) + 16px));
   bottom: auto;
   display: flex;
   flex-direction: column;
@@ -650,7 +650,7 @@ h2 {
     justify-self: stretch;
   }
   .toast-stack {
-    top: var(--toast-top, calc(var(--safe-t) + var(--hud-band, 168px) + 8px));
+    top: var(--toast-top, calc(var(--safe-t) + var(--hud-band, 168px) + 16px));
     max-width: min(88vw, 300px);
   }
   #banner {

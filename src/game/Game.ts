@@ -715,10 +715,11 @@ export class Game {
     this.layoutKey = key;
     this.layout = computeLayout(this.cssW, this.cssH, this.run.turno, slots, band);
     // Toasts fora dos cartões de pedido: sob a fila (retrato) ou no topo da prateleira (paisagem).
+    // Retrato: um pouco mais de ar abaixo da fila p/ não colar no bloco do HUD ("Na mão").
     const q = this.layout.queue;
     const toastTop = this.layout.landscape
       ? Math.round(this.layout.shelves.y + 8)
-      : Math.round(q.y + q.h + 6);
+      : Math.round(q.y + q.h + 16);
     const clamped = Math.max(56, Math.min(toastTop, Math.max(56, this.cssH - 88)));
     document.documentElement.style.setProperty("--toast-top", `${clamped}px`);
   }
