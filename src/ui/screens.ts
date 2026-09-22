@@ -207,21 +207,21 @@ export class Screens {
       {
         title: "A prateleira",
         body: touch
-          ? "Toque num produto na prateleira embaixo — ou arraste até o cliente."
-          : "Clique num produto na prateleira — ou arraste até o cliente. Teclas 1–8 também pegam.",
-        tip: "O pedido aparece no balão da pessoa.",
+          ? "Toque o produto na prateleira (ou arraste até o cliente)."
+          : "Clique o produto na prateleira (1–8 também pegam).",
+        tip: "O pedido fica no balão da pessoa.",
         spot: "shelf",
       },
       {
         title: "Cuidado com sósias",
-        body: "Refri ≠ Zero, Leite ≠ Creme, Água ≠ c/ Gás, Detergente ≠ Amaciante. Olhe a forma e o símbolo.",
+        body: "Sósias: Refri≠Zero, Leite≠Creme, Água≠c/Gás, Detergente≠Amaciante. Forma + símbolo.",
         tip: "Errar zera o combo e gasta paciência.",
         spot: "lookalike",
       },
       {
         title: "Acelerador 1x / 2x / 3x",
-        body: "No canto do HUD, o botão de velocidade acelera o expediente quando você estiver afiado.",
-        tip: "Comece em 1x. Depois acelera.",
+        body: "Botão 1x/2x/3x no HUD acelera o expediente quando estiver afiado.",
+        tip: "Comece em 1x. Quatro vidas. Esc pausa · M muda o som.",
         spot: "speed",
       },
     ];
@@ -230,13 +230,13 @@ export class Screens {
       <section class="overlay tutorial-overlay" data-spot="${s.spot}">
         <div class="tutorial-dim" aria-hidden="true"></div>
         <div class="panel tutorial-panel premium-panel">
-          <div class="eyebrow">Tour rápido · ${step + 1}/3</div>
+          <div class="eyebrow">30s · ${step + 1}/3</div>
           <h2>${s.title}</h2>
           <p class="lede">${s.body}</p>
           <p class="tutorial-tip">${s.tip}</p>
           <div class="stack">
             <button type="button" class="btn primary cta" data-act="tutorialNext">${step >= 2 ? "Abrir o caixa" : "Próximo"}</button>
-            <button type="button" class="btn ghost" data-act="tutorialSkip">Pular tutorial</button>
+            <button type="button" class="btn ghost tutorial-skip" data-act="tutorialSkip">Já sei — pular</button>
           </div>
         </div>
       </section>`);

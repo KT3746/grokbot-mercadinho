@@ -8,6 +8,7 @@ import {
   pick,
   randInt,
   shuffleInPlace,
+  PARTICLE_CAP,
 } from "../config";
 import { ARCHETYPES, IDLE_CHAT, PRODUCT_BY_ID, SHIFT_LINES, TOASTS, productsUnlocked } from "../data/catalog";
 import type { ChaosKind, CustomerMood, ProductId, TurnGoal } from "../types";
@@ -328,7 +329,7 @@ export function tryDeliver(run: Run, customerId: number, at?: { x: number; y: nu
     c.patience = Math.max(0.4, c.patience - c.patienceMax * 0.14);
     say(c, arch.wrong);
     run.holding = null;
-    run.shake = Math.max(run.shake, 12);
+    run.shake = Math.max(run.shake, 16);
     burst(run, at?.x ?? 0.5, at?.y ?? 0.28, "#c4491d", 8);
     return { type: "wrong", name: arch.name, mixup };
   }
@@ -353,7 +354,7 @@ export function tryDeliver(run: Run, customerId: number, at?: { x: number; y: nu
   } else {
     say(c, ["Ainda falta um.", "Isso. O próximo.", "Segue a lista."]);
   }
-  run.punch = Math.max(run.punch, 0.085);
+  run.punch = Math.max(run.punch, 0.11);
   // Poucos sparks — sem spam de partículas.
   burst(run, at?.x ?? 0.5, at?.y ?? 0.28, c.special ? "#e3b23c" : "#4caf5a", run.combo >= 4 ? 10 : 6);
   if (run.combo >= 3) burst(run, at?.x ?? 0.5, (at?.y ?? 0.28) - 0.02, "#f6e27a", 4);
@@ -366,19 +367,20 @@ export function tryDeliver(run: Run, customerId: number, at?: { x: number; y: nu
 }
 
 function burst(run: Run, x: number, y: number, color: string, n: number): void {
-  const cap = Math.min(n, 12);
+  const room = Math.max(0, PARTICLE_CAP - run.particles.length);
+  const cap = Math.min(n, 12, room);
   for (let i = 0; i < cap; i++) {
-    const life = 0.42 + Math.random() * 0.28;
+    const life = 0.36 + Math.random() * 0.22;
     run.particles.push({
       x,
       y,
-      vx: (Math.random() - 0.5) * 0.42,
-      vy: -0.2 - Math.random() * 0.28,
+      vx: (Math.random() - 0.5) * 0.48,
+      vy: -0.22 - Math.random() * 0.3,
       life,
       max: life,
       color,
       size: 3 + Math.random() * 4.5,
-      kind: Math.random() < 0.35 ? "star" : "spark",
+      kind: Math.random() < 0.4 ? "star" : "spark",
     });
   }
 }

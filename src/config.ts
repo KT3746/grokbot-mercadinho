@@ -32,6 +32,19 @@ export const wantsTouchControls = (): boolean => {
   return isPhoneViewport() || coarse || points > 0;
 };
 
+/** Acessibilidade: reduz shake/partículas/animações CSS. */
+export const prefersReducedMotion = (): boolean => {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch {
+    return false;
+  }
+};
+
+/** Cap de partículas no canvas (mobile + reduced-motion cortam mais). */
+export const PARTICLE_CAP = 48;
+
 /** Copy/toasts: mouse + tela larga = "clique", mesmo se o aparelho também tiver toque. */
 export const wantsTouchCopy = (): boolean => {
   if (typeof window === "undefined") return false;

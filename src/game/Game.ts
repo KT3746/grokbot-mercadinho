@@ -1,5 +1,5 @@
 import { Sfx } from "../audio/sfx";
-import { BUILD_ID, COMBO_WINDOW, GAME_TITLE, HUD_H_LANDSCAPE, HUD_H_PORTRAIT, wantsTouchCopy } from "../config";
+import { BUILD_ID, COMBO_WINDOW, GAME_TITLE, HUD_H_LANDSCAPE, HUD_H_PORTRAIT, prefersReducedMotion, wantsTouchCopy } from "../config";
 import { PRODUCT_BY_ID, TOASTS, productsUnlocked } from "../data/catalog";
 import {
   applyShift,
@@ -194,6 +194,7 @@ export class Game {
   private bind(): void {
     document.getElementById("btn-speed")?.addEventListener("click", () => this.cycleSpeed());
     document.getElementById("btn-drop")?.addEventListener("click", () => this.drop());
+    document.getElementById("btn-pause")?.addEventListener("click", () => this.pause());
 
     this.canvas.addEventListener("contextmenu", (e) => {
       e.preventDefault();
@@ -483,8 +484,10 @@ export class Game {
       case "deliver": {
         this.audio.punch();
         this.audio.cash();
-        this.hitstop = Math.max(this.hitstop, ev.combo >= 4 ? 0.07 : 0.045);
-        if (this.run) this.run.punch = Math.max(this.run.punch, 0.09);
+        const reduce = prefersReducedMotion();
+        const stop = reduce ? 0.02 : ev.combo >= 5 ? 0.09 : ev.combo >= 3 ? 0.065 : 0.05;
+        this.hitstop = Math.max(this.hitstop, stop);
+        if (this.run) this.run.punch = Math.max(this.run.punch, reduce ? 0.04 : 0.12);
         if (ev.combo >= 3) {
           this.audio.combo(ev.combo);
           this.buzz([12, 30, 18]);
@@ -493,12 +496,17 @@ export class Game {
         }
         this.popScore(ev.score, ev.combo, ev.customerId, at);
         this.flashCombo();
+        if (ev.combo === 3 || ev.combo === 5 || ev.combo === 8) {
+          this.toast(`Combo ×${ev.combo}!`, 900, "ok");
+        }
         break;
       }
       case "wrong": {
         this.audio.wrong();
         this.buzz([30, 40, 45]);
-        if (this.run) this.run.shake = Math.max(this.run.shake, 14);
+        if (this.run) {
+          this.run.shake = Math.max(this.run.shake, prefersReducedMotion() ? 6 : 18);
+        }
         let msg =
           TOASTS.wrong[Math.floor(Math.random() * TOASTS.wrong.length)] ?? "Ops. Era o outro.";
         if (ev.mixup) {
@@ -507,8 +515,9 @@ export class Game {
           const want = parts[1]?.trim() || "o outro";
           msg = `Sósia! Pediu ${want} — você deu ${given}.`;
         }
-        this.toast(msg, 1900);
+        this.toast(msg, 1900, "bad");
         this.popWrong(ev.mixup ? ev.mixup : msg, at);
+        this.flashWrong();
         break;
       }
       case "rage":
@@ -516,6 +525,7 @@ export class Game {
         this.toast(
           `${ev.name} foi embora — você perdeu uma vida. Restam ${Math.max(0, this.run.lives)}.`,
           1400,
+          "bad",
         );
         this.flashLifeLost();
         break;
@@ -527,7 +537,7 @@ export class Game {
         break;
       case "chaos":
         this.audio.chaos();
-        this.toast(toastFor(ev.kind), 1200);
+        this.toast(toastFor(ev.kind), 1200, "warn");
         break;
       case "over":
         this.audio.over();
@@ -683,7 +693,9 @@ export class Game {
     const h = Math.max(1, window.innerHeight);
     this.cssW = w;
     this.cssH = h;
-    this.dpr = Math.min(window.devicePixelRatio || 1, w < 700 ? 1.5 : 2);
+    const mobile = w < 700;
+    const reduce = prefersReducedMotion();
+    this.dpr = Math.min(window.devicePixelRatio || 1, reduce ? 1.25 : mobile ? 1.35 : 2);
     this.canvas.width = Math.floor(w * this.dpr);
     this.canvas.height = Math.floor(h * this.dpr);
     this.canvas.style.width = `${w}px`;
@@ -744,6 +756,8 @@ export class Game {
     this.run = null;
     this.audio.stopBed();
     document.body.classList.remove("tutor-shelf", "tutor-lookalike", "tutor-speed");
+    const spotEl = document.getElementById("tutor-spot");
+    if (spotEl) spotEl.hidden = true;
     syncUnlocks(this.save);
     this.refreshCosmetics();
     this.ui.title(this.save.muted, this.save.best, this.save.bestStars, this.save.history || []);
@@ -789,6 +803,8 @@ export class Game {
     writeSave(this.save);
     this.tutorialStep = 0;
     document.body.classList.remove("tutor-shelf", "tutor-lookalike", "tutor-speed");
+    const spotEl = document.getElementById("tutor-spot");
+    if (spotEl) spotEl.hidden = true;
     this.hud.hidden = true;
     if (!this.run) {
       // Save marcado; próxima partida não reabre o tour.
@@ -798,7 +814,7 @@ export class Game {
     this.view = "play";
     this.beginShift();
     if (skipped) {
-      this.toast("Tutorial pulado. Bom expediente!", 1600);
+      this.toast("Tutorial pulado. Bom expediente!", 1400, "ok");
     }
   }
 
@@ -816,12 +832,17 @@ export class Game {
     this.syncChrome();
     this.resize();
     document.getElementById("btn-speed")?.blur();
-    this.toast(
-      wantsTouchCopy()
-        ? "Toque no produto, depois no cliente. Ou arraste."
-        : "Clique no produto, depois no cliente. 1–8 pega o item. Espaço entrega.",
-      2400,
-    );
+    if (this.save.plays <= 1) {
+      this.toast(
+        wantsTouchCopy()
+          ? "Toque no produto, depois no cliente. Ou arraste."
+          : "Clique no produto, depois no cliente. 1–8 pega · Espaço entrega.",
+        2200,
+        "info",
+      );
+    } else {
+      this.toast("Caixa aberto. Bom expediente!", 1100, "ok");
+    }
     this.audio.shift();
     this.audio.startBed();
     this.audio.setPressure(0);
@@ -870,7 +891,7 @@ export class Game {
     this.view = "over";
     if (fresh.length) {
       window.setTimeout(() => {
-        this.toast(`Loja da esquina: ${fresh[0]!.name} desbloqueado!`, 2200);
+        this.toast(`Loja da esquina: ${fresh[0]!.name} desbloqueado!`, 2200, "ok");
       }, 600);
     }
     this.ui.over(
@@ -964,7 +985,8 @@ export class Game {
           this.ui.title(muted, this.save.best, this.save.bestStars, this.save.history || []);
         }
         if (this.view === "paused") this.ui.pause(muted);
-        this.audio.click();
+        // Só confirma com click ao ATIVAR o som (quando muta, master já está 0).
+        if (!muted) this.audio.click();
         break;
       }
       default:
@@ -1025,9 +1047,16 @@ export class Game {
 
   private syncTutorialChrome(): void {
     document.body.classList.remove("tutor-shelf", "tutor-lookalike", "tutor-speed");
+    const spotEl = document.getElementById("tutor-spot");
+    if (spotEl) spotEl.hidden = true;
     if (this.view !== "tutorial") return;
     const spot = this.tutorialStep === 0 ? "shelf" : this.tutorialStep === 1 ? "lookalike" : "speed";
     document.body.classList.add(`tutor-${spot}`);
+    // Spotlight HTML (canvas não tem ::after).
+    if (spotEl && spot !== "speed") {
+      spotEl.hidden = false;
+      spotEl.dataset.spot = spot;
+    }
     // No passo da velocidade, mostra o HUD pra o botão 1x/2x/3x aparecer.
     if (spot === "speed" && this.run) {
       this.run.tutorial = true;
@@ -1156,17 +1185,32 @@ export class Game {
     } else this.bannerEl.hidden = true;
   }
 
-  private toast(text: string, ms = 1100): void {
+  private toast(text: string, ms = 1100, kind: "info" | "ok" | "bad" | "warn" = "info"): void {
     this.toastEl.hidden = false;
     const el = document.createElement("div");
-    el.className = "toast";
+    el.className = kind === "info" ? "toast" : `toast toast-${kind}`;
     el.textContent = text;
     this.toastEl.appendChild(el);
-    while (this.toastEl.childElementCount > 3) this.toastEl.firstElementChild?.remove();
+    while (this.toastEl.childElementCount > 2) this.toastEl.firstElementChild?.remove();
     window.setTimeout(() => {
       el.remove();
       if (!this.toastEl.childElementCount) this.toastEl.hidden = true;
     }, ms);
+  }
+
+  /** Flash curto no erro (sem perder vida) — feedback visual imediato. */
+  private flashWrong(): void {
+    if (!this.hurtEl || prefersReducedMotion()) return;
+    this.hurtEl.classList.add("hurt-soft");
+    this.hurtEl.hidden = true;
+    void this.hurtEl.offsetWidth;
+    this.hurtEl.hidden = false;
+    window.setTimeout(() => {
+      if (this.hurtEl) {
+        this.hurtEl.hidden = true;
+        this.hurtEl.classList.remove("hurt-soft");
+      }
+    }, 280);
   }
 
   private flashLifeLost(): void {
