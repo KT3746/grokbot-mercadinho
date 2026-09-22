@@ -1,4 +1,4 @@
-import { GAME_TITLE, wantsTouchCopy } from "../config";
+import { GAME_TITLE, prefersReducedMotion, wantsTouchCopy } from "../config";
 import { ARCHETYPES, PRODUCT_BY_ID } from "../data/catalog";
 import type { CosmeticPalette } from "../data/cosmetics";
 import type { Customer, Particle, Run } from "../game/sim";
@@ -42,8 +42,10 @@ export function drawShop(
   const { w, h } = layout;
   ctx.clearRect(0, 0, w, h);
   ctx.save();
+  const reduce = prefersReducedMotion();
   if (run.shake > 0.4) {
-    ctx.translate((Math.random() - 0.5) * run.shake, (Math.random() - 0.5) * run.shake);
+    const amp = reduce ? run.shake * 0.2 : run.shake;
+    ctx.translate((Math.random() - 0.5) * amp, (Math.random() - 0.5) * amp);
   }
 
   paintWall(ctx, w, h, layout, t, cosmetics);
@@ -53,6 +55,21 @@ export function drawShop(
   paintShelves(ctx, layout, run, t, cosmetics);
   if (run.chaos?.kind === "gato") drawCat(ctx, layout, run, t);
   drawParticles(ctx, run.particles, layout);
+  // Urgência: vinheta vermelha quando alguém está no limite.
+  let critical = 0;
+  for (const c of run.customers) {
+    if (c.mood !== "wait" && c.mood !== "enter") continue;
+    const r = c.patience / Math.max(0.001, c.patienceMax);
+    if (r < 0.22) critical = Math.max(critical, 1 - r / 0.22);
+  }
+  if (critical > 0.05 && !prefersReducedMotion()) {
+    const a = 0.1 + critical * 0.28;
+    const g = ctx.createRadialGradient(layout.w * 0.5, layout.h * 0.4, layout.w * 0.2, layout.w * 0.5, layout.h * 0.45, layout.w * 0.72);
+    g.addColorStop(0, "rgba(0,0,0,0)");
+    g.addColorStop(1, `rgba(180, 40, 28, ${a.toFixed(3)})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, layout.w, layout.h);
+  }
   if (ghost) drawProduct(ctx, ghost.id, ghost.x, ghost.y, Math.min(84, layout.w * 0.14), t, true);
   if (run.chaos?.kind === "apagao") {
     ctx.fillStyle = "rgba(12, 8, 6, 0.46)";
@@ -428,7 +445,8 @@ function drawCustomer(ctx: CanvasRenderingContext2D, c: Customer, layout: PlayLa
     urg > 0.55 ? "rgba(76, 175, 90, 0.95)" : urg > 0.32 ? "rgba(227, 178, 60, 0.98)" : "rgba(224, 82, 40, 1)";
   const urgGlow =
     urg > 0.55 ? "rgba(76, 175, 90, 0.18)" : urg > 0.32 ? "rgba(227, 178, 60, 0.22)" : "rgba(224, 82, 40, 0.32)";
-  const urgWidth = urg > 0.55 ? 2.5 : urg > 0.32 ? 3.2 : 3.8 + (urg < 0.2 ? Math.sin(t * 10) * 0.6 : 0);
+  const urgPulse = prefersReducedMotion() ? 0 : (urg < 0.2 ? Math.sin(t * 12) * 0.85 : urg < 0.32 ? Math.sin(t * 8) * 0.35 : 0);
+  const urgWidth = urg > 0.55 ? 2.5 : urg > 0.32 ? 3.2 : 3.9 + urgPulse;
   ctx.fillStyle = c.mood === "rage" ? "#3a241c" : "#2a2218";
   roundRect(ctx, bx, by, bubbleW, bubbleH, 10);
   ctx.fill();
@@ -911,7 +929,9 @@ function drawSparkStar(ctx: CanvasRenderingContext2D, x: number, y: number, r: n
 }
 
 function drawParticles(ctx: CanvasRenderingContext2D, parts: Particle[], layout: PlayLayout): void {
-  for (const p of parts) {
+  const reduce = prefersReducedMotion();
+  const list = reduce ? parts.filter((p) => p.kind === "float" || p.text) : parts;
+  for (const p of list) {
     const x = p.x * layout.w;
     const y = p.y * layout.h;
     const a = clamp01(p.life / p.max);
@@ -929,8 +949,10 @@ function drawParticles(ctx: CanvasRenderingContext2D, parts: Particle[], layout:
       ctx.fillText(p.text, x, y);
     } else {
       ctx.fillStyle = p.color;
-      ctx.shadowColor = p.color;
-      ctx.shadowBlur = p.kind === "star" ? 10 : 6;
+      if (!reduce) {
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = p.kind === "star" ? 10 : 6;
+      }
       if (p.kind === "star") {
         drawSparkStar(ctx, x, y, Math.max(3, p.size * 1.15));
       } else {
