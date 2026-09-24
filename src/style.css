@@ -66,8 +66,16 @@ body.webgl-on #scene3d {
   display: block;
 }
 
-body.webgl-on #scene {
-  background: transparent;
+body.webgl-on .screen.title-screen,
+body.webgl-on .screen.shop-screen,
+body.webgl-on .screen.solid:not(.over-screen) {
+  background:
+    linear-gradient(180deg, rgba(10, 8, 6, 0.82) 0%, rgba(10, 8, 6, 0.22) 36%, rgba(10, 8, 6, 0.18) 58%, rgba(10, 8, 6, 0.88) 100%);
+}
+
+body.webgl-on .screen.title-screen .lede,
+body.webgl-on .screen.title-screen h1 {
+  text-shadow: 0 2px 0 #050403, 0 8px 28px rgba(0, 0, 0, 0.65);
 }
 
 #scene {

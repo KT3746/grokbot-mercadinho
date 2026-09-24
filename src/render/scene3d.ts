@@ -7,7 +7,7 @@ import { detectFx, hexColor, probeWebGL, type FxProfile } from "./fx";
 import { applyShelfOrder, type PlayLayout } from "./layout";
 import { makeProduct, makeSharedGeo, type SharedGeo } from "./products3d";
 
-const FOG = 0x120e0c;
+const FOG = 0x241810;
 const WEBGL_FAIL_PT =
   "Não deu pra ligar o gráfico 3D neste aparelho. O MERCADINHO segue no visual clássico.";
 
@@ -99,7 +99,7 @@ export class Scene3D {
     try {
       const scene = new THREE.Scene();
       scene.background = new THREE.Color(FOG);
-      scene.fog = new THREE.FogExp2(FOG, this.fx.lowFx ? 0.072 : 0.048);
+      scene.fog = new THREE.FogExp2(FOG, this.fx.lowFx ? 0.038 : 0.024);
 
       const camera = new THREE.PerspectiveCamera(42, 1, 0.12, 60);
       camera.position.set(0, 11.6, 8.4);
@@ -120,12 +120,12 @@ export class Scene3D {
       this.renderer = renderer;
       this.geo = makeSharedGeo(this.fx.lowFx);
 
-      this.ambient = new THREE.AmbientLight(0x6a5848, 0.42);
+      this.ambient = new THREE.AmbientLight(0xc8b49a, 0.62);
       scene.add(this.ambient);
-      this.hemi = new THREE.HemisphereLight(0xffe6c8, 0x1a120c, 0.72);
+      this.hemi = new THREE.HemisphereLight(0xfff0d8, 0x3a2818, 0.95);
       scene.add(this.hemi);
-      this.sun = new THREE.DirectionalLight(0xfff2d4, 1.05);
-      this.sun.position.set(-4.2, 10, 5.5);
+      this.sun = new THREE.DirectionalLight(0xfff6e4, 1.35);
+      this.sun.position.set(-3.2, 12, 6.5);
       scene.add(this.sun);
       if (!this.fx.lowFx) {
         this.lamp = new THREE.PointLight(0xffc878, 0.55, 16, 2);
@@ -198,6 +198,7 @@ export class Scene3D {
       this.layoutMenu(cssW, cssH);
       this.syncMenuProducts(this.idleT);
       this.hideCustomers();
+      this.poseMenuCustomers(this.idleT);
       if (this.cat) this.cat.visible = false;
       if (this.ghostMesh) this.ghostMesh.visible = false;
       this.aimMenuCamera(cssW, cssH, this.idleT);
@@ -249,10 +250,10 @@ export class Scene3D {
     this.store = root;
     scene.add(root);
 
-    this.floorMat = lambert(0x2a1c14);
-    this.wallMat = lambert(0x3a2c22);
-    this.shelfMat = lambert(0x24362c);
-    this.shelfDeepMat = lambert(0x16241c);
+    this.floorMat = lambert(0x4a3428);
+    this.wallMat = lambert(0x5a4436);
+    this.shelfMat = lambert(0x3a5a44);
+    this.shelfDeepMat = lambert(0x24382c);
     this.signFace = lambert(0x2a2218, { emissive: 0x3a2a10, emissiveIntensity: 0.18 });
     this.signEdge = lambert(0xe3b23c, { emissive: 0xe3b23c, emissiveIntensity: 0.35 });
 
@@ -533,12 +534,12 @@ export class Scene3D {
   private applyChaosLights(run: Run | null): void {
     const apagao = run?.chaos?.kind === "apagao";
     const rush = run?.chaos?.kind === "rush";
-    if (this.ambient) this.ambient.intensity = apagao ? 0.12 : 0.42;
-    if (this.hemi) this.hemi.intensity = apagao ? 0.18 : 0.72;
-    if (this.sun) this.sun.intensity = apagao ? 0.15 : rush ? 1.2 : 1.05;
-    if (this.lamp) this.lamp.intensity = apagao ? 0.08 : 0.55;
+    if (this.ambient) this.ambient.intensity = apagao ? 0.16 : 0.62;
+    if (this.hemi) this.hemi.intensity = apagao ? 0.22 : 0.95;
+    if (this.sun) this.sun.intensity = apagao ? 0.18 : rush ? 1.5 : 1.35;
+    if (this.lamp) this.lamp.intensity = apagao ? 0.1 : 0.7;
     if (this.scene?.fog && this.scene.fog instanceof THREE.FogExp2) {
-      this.scene.fog.density = apagao ? 0.11 : this.fx.lowFx ? 0.072 : 0.048;
+      this.scene.fog.density = apagao ? 0.09 : this.fx.lowFx ? 0.038 : 0.024;
     }
     if (this.scene?.background instanceof THREE.Color) {
       this.scene.background.setHex(apagao ? 0x080604 : FOG);
@@ -617,10 +618,10 @@ export class Scene3D {
       const mesh = this.products.get(cell.id);
       if (!mesh) continue;
       const c = this.map.to(cell.rect.x + cell.rect.w / 2, cell.rect.y + cell.rect.h * 0.42, layout.w, layout.h);
-      const scale = Math.min(cell.rect.w / layout.w, cell.rect.h / layout.h) * this.map.d * 1.55;
+      const scale = Math.min(cell.rect.w / layout.w, cell.rect.h / layout.h) * this.map.d * 2.15;
       mesh.visible = true;
-      mesh.position.set(c.x, 1.05, c.z);
-      mesh.scale.setScalar(Math.max(0.55, Math.min(1.35, scale)));
+      mesh.position.set(c.x, 1.22, c.z);
+      mesh.scale.setScalar(Math.max(0.85, Math.min(1.85, scale)));
       mesh.rotation.y = Math.sin(run.t * 1.4 + cell.rect.x * 0.02) * (this.fx.reduceMotion ? 0 : 0.12);
       const blocked =
         catBlock &&
@@ -658,6 +659,28 @@ export class Scene3D {
 
   private hideCustomers(): void {
     for (const rig of this.customers) rig.root.visible = false;
+  }
+
+  private poseMenuCustomers(t: number): void {
+    const spots = [
+      { x: -1.35, z: -0.15, arch: 0 },
+      { x: 1.45, z: 0.05, arch: 2 },
+    ];
+    spots.forEach((s, i) => {
+      const rig = this.customers[i];
+      const arch = ARCHETYPES[s.arch] ?? ARCHETYPES[0]!;
+      if (!rig) return;
+      rig.shirtMat.color.setHex(hexColor(arch.shirt));
+      rig.skinMat.color.setHex(hexColor(arch.skin));
+      rig.hairMat.color.setHex(hexColor(arch.hair));
+      this.styleHair(rig, arch.hairStyle);
+      rig.root.visible = true;
+      rig.root.position.set(s.x, Math.sin(t * 2 + i) * 0.04, s.z);
+      rig.root.scale.setScalar(1.55);
+      rig.root.rotation.y = i === 0 ? 0.35 : -0.4;
+      (rig.ring.material as THREE.MeshBasicMaterial).opacity = 0;
+      rig.ring.visible = false;
+    });
   }
 
   private syncCustomers(run: Run, layout: PlayLayout, selected: number | null, t: number): void {
@@ -706,11 +729,11 @@ export class Scene3D {
       scale = 1 + Math.sin(Math.min(1, c.anim * 2) * Math.PI) * 0.08;
     }
     const bob = c.mood === "wait" ? Math.sin(t * 3 + c.id) * 0.04 : 0;
-    const p = this.map.to(slot.x + slot.w / 2, slot.y + slot.h * 0.72, layout.w, layout.h);
+    const p = this.map.to(slot.x + slot.w / 2, slot.y + slot.h * 0.9, layout.w, layout.h);
     rig.root.visible = c.mood !== "leave" || c.anim < 0.95;
     rig.root.position.set(p.x + ox, Math.max(0, oy + bob), p.z);
-    const slotScale = (Math.min(slot.w, slot.h) / Math.max(layout.h, 1)) * this.map.d * 0.85;
-    rig.root.scale.setScalar(Math.max(0.7, Math.min(1.35, slotScale)) * scale);
+    const slotScale = (Math.min(slot.w, slot.h) / Math.max(layout.h, 1)) * this.map.d * 1.55;
+    rig.root.scale.setScalar(Math.max(1.15, Math.min(2.1, slotScale)) * scale);
     rig.root.rotation.y = rot;
     rig.armL.rotation.x = c.mood === "happy" ? -0.9 : c.mood === "rage" ? 0.5 : 0;
     rig.armR.rotation.x = c.mood === "happy" ? -0.9 : c.mood === "rage" ? 0.5 : 0;
@@ -749,19 +772,19 @@ export class Scene3D {
     const punch = run.punch > 0 ? run.punch * 0.8 : 0;
     const shake = run.shake > 0.4 && !this.fx.reduceMotion ? (Math.random() - 0.5) * run.shake * 0.012 : 0;
     if (layout.landscape) {
-      this.camera.position.set(0.4 + shake, 10.2 - punch, 9.2);
-      this.camera.lookAt(0, 0.3, -0.4);
+      this.camera.position.set(0.15 + shake, 12.4 - punch, 4.6);
+      this.camera.lookAt(0, 0.45, 0.2);
     } else {
-      this.camera.position.set(shake, 11.4 - punch, 8.6);
-      this.camera.lookAt(0, 0.35, -0.8);
+      this.camera.position.set(shake * 0.6, 13.2 - punch, 3.8);
+      this.camera.lookAt(0, 0.4, 0.35);
     }
   }
 
   private aimMenuCamera(cssW: number, cssH: number, t: number): void {
     if (!this.camera) return;
-    const bob = this.fx.reduceMotion ? 0 : Math.sin(t * 0.35) * 0.45;
-    this.camera.position.set(bob, 10.8, 9.4);
-    this.camera.lookAt(0.15, 0.6, -0.2);
+    const bob = this.fx.reduceMotion ? 0 : Math.sin(t * 0.35) * 0.55;
+    this.camera.position.set(0.8 + bob, 7.4, 11.2);
+    this.camera.lookAt(0.1, 1.1, -0.8);
     this.camera.aspect = Math.max(1, cssW) / Math.max(1, cssH);
     this.camera.updateProjectionMatrix();
   }

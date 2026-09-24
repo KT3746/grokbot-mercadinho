@@ -242,9 +242,11 @@ function paintShelves(
       ctx.restore();
     }
     const cx = cell.rect.x + cell.rect.w / 2;
-    const cy = cell.rect.y + cell.rect.h * 0.36;
-    const size = Math.min(cell.rect.w, cell.rect.h) * (overlay ? 0.58 : 0.72);
-    drawProduct(ctx, cell.id, cx, cy, size, t, run.holding === cell.id);
+    if (!overlay) {
+      const cy = cell.rect.y + cell.rect.h * 0.36;
+      const size = Math.min(cell.rect.w, cell.rect.h) * 0.72;
+      drawProduct(ctx, cell.id, cx, cy, size, t, run.holding === cell.id);
+    }
     const p = PRODUCT_BY_ID[cell.id];
     const labelSize = Math.max(12, Math.min(16, cell.rect.w * 0.2));
     ctx.font = `800 ${labelSize}px Nunito, sans-serif`;
