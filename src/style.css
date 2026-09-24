@@ -47,12 +47,35 @@ body.is-play {
 
 #app,
 #scene,
+#scene3d,
 #ui {
   position: fixed;
   inset: 0;
   width: 100%;
   height: 100%;
   height: 100dvh;
+}
+
+#scene3d {
+  display: none;
+  z-index: 0;
+  pointer-events: none;
+}
+
+body.webgl-on #scene3d {
+  display: block;
+}
+
+body.webgl-on .screen.title-screen,
+body.webgl-on .screen.shop-screen,
+body.webgl-on .screen.solid:not(.over-screen) {
+  background:
+    linear-gradient(180deg, rgba(10, 8, 6, 0.82) 0%, rgba(10, 8, 6, 0.22) 36%, rgba(10, 8, 6, 0.18) 58%, rgba(10, 8, 6, 0.88) 100%);
+}
+
+body.webgl-on .screen.title-screen .lede,
+body.webgl-on .screen.title-screen h1 {
+  text-shadow: 0 2px 0 #050403, 0 8px 28px rgba(0, 0, 0, 0.65);
 }
 
 #scene {
@@ -62,10 +85,37 @@ body.is-play {
   cursor: pointer;
 }
 
+#webgl-fail {
+  position: fixed;
+  left: 50%;
+  bottom: calc(12px + var(--safe-b));
+  transform: translateX(-50%);
+  z-index: 30;
+  margin: 0;
+  max-width: min(92vw, 360px);
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(28, 20, 14, 0.94);
+  color: var(--cream);
+  border: 2px solid rgba(227, 178, 60, 0.5);
+  font-weight: 700;
+  font-size: 14px;
+  text-align: center;
+  pointer-events: none;
+}
+
+#webgl-fail[hidden] {
+  display: none !important;
+}
+
 /* Depois de Continuar / toque no canvas, o jogo fica por cima do botão Pausa
    para o primeiro toque acertar a prateleira, não o HUD (ghost click iOS). */
 body.play-guard #scene {
   z-index: 8;
+}
+
+body.play-guard #scene3d {
+  z-index: 7;
 }
 
 body.play-guard #btn-pause,

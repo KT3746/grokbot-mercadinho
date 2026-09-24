@@ -25,6 +25,7 @@ import {
 import { loadSave, pushRunHistory, writeSave } from "../persist";
 import { computeLayout, contains, type PlayLayout } from "../render/layout";
 import { drawProduct, drawShop, hitCustomer, hitProduct, type PointerGhost } from "../render/draw";
+import { Scene3D } from "../render/scene3d";
 import type { ProductId, SaveData, View } from "../types";
 import { Screens, type UiAction } from "../ui/screens";
 
@@ -33,6 +34,7 @@ export class Game {
   ctx: CanvasRenderingContext2D;
   ui: Screens;
   audio = new Sfx();
+  scene3d = new Scene3D();
   save: SaveData;
   view: View = "title";
   run: Run | null = null;
@@ -60,6 +62,7 @@ export class Game {
   private guardTimer = 0;
   /** Hitstop residual (segundos de relógio real). */
   private hitstop = 0;
+  private lastDt = 0.016;
   private tutorialStep = 0;
   private cosPalette: CosmeticPalette = paletteFor({
     sign: "sign-classic",
@@ -68,7 +71,9 @@ export class Game {
   });
 
   constructor(canvas: HTMLCanvasElement, uiRoot: HTMLElement) {
-    const ctx = canvas.getContext("2d", { alpha: false });
+    const glCanvas = document.getElementById("scene3d") as HTMLCanvasElement | null;
+    const webglOk = glCanvas ? this.scene3d.init(glCanvas) : false;
+    const ctx = canvas.getContext("2d", { alpha: webglOk });
     if (!ctx) throw new Error("MERCADINHO: canvas 2D indisponível");
     this.canvas = canvas;
     this.ctx = ctx;
@@ -111,6 +116,7 @@ export class Game {
       let dt = (now - this.last) / 1000;
       this.last = now;
       if (dt > 0.12) dt = 0.12;
+      this.lastDt = dt;
       // Hitstop: congela a simulação por um instante (clock real).
       if (this.hitstop > 0) {
         this.hitstop -= dt;
@@ -601,6 +607,20 @@ export class Game {
 
   private paint(): void {
     const { ctx, cssW, cssH } = this;
+    const overlay = this.scene3d.ok;
+    if (overlay) {
+      this.scene3d.sync({
+        view: this.view,
+        run: this.run,
+        layout: this.layout,
+        cosmetics: this.cosPalette,
+        selected: this.selected,
+        ghost: this.view === "play" ? this.ghost : null,
+        cssW,
+        cssH,
+      });
+      this.scene3d.render(this.lastDt);
+    }
     if (
       (this.view === "play" || this.view === "paused" || this.view === "summary" || this.view === "tutorial") &&
       this.run &&
@@ -621,8 +641,13 @@ export class Game {
         this.view === "play" ? this.ghost : null,
         this.selected,
         this.cosPalette,
+        overlay,
       );
       ctx.restore();
+      return;
+    }
+    if (overlay) {
+      ctx.clearRect(0, 0, cssW, cssH);
       return;
     }
     this.paintMenuBg(cssW, cssH);
@@ -701,6 +726,7 @@ export class Game {
     this.canvas.style.width = `${w}px`;
     this.canvas.style.height = `${h}px`;
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    if (this.scene3d.ok) this.scene3d.resize(w, h);
     this.remeasureHud(true);
   }
 
