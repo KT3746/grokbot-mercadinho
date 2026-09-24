@@ -11,27 +11,6 @@ const FOG = 0x241810;
 const WEBGL_FAIL_PT =
   "Não deu pra ligar o gráfico 3D neste aparelho. O MERCADINHO segue no visual clássico.";
 
-type WorldMap = {
-  w: number;
-  d: number;
-  to: (x: number, y: number, layoutW: number, layoutH: number) => { x: number; z: number };
-};
-
-function makeMap(layoutW: number, layoutH: number): WorldMap {
-  const d = 12.4;
-  const w = d * (layoutW / Math.max(1, layoutH));
-  return {
-    w,
-    d,
-    to(x, y, lw, lh) {
-      return {
-        x: (x / Math.max(1, lw) - 0.5) * w,
-        z: (y / Math.max(1, lh) - 0.5) * d,
-      };
-    },
-  };
-}
-
 function lambert(hex: number, extra?: THREE.MeshLambertMaterialParameters): THREE.MeshLambertMaterial {
   return new THREE.MeshLambertMaterial({ color: hex, ...extra });
 }
@@ -80,9 +59,12 @@ export class Scene3D {
   private shelfDeepMat: THREE.MeshLambertMaterial | null = null;
   private signFace: THREE.MeshLambertMaterial | null = null;
   private signEdge: THREE.MeshLambertMaterial | null = null;
-  private map: WorldMap = makeMap(9, 16);
   private idleT = 0;
   private failShown = false;
+  private readonly _ndc = new THREE.Vector2();
+  private readonly _ray = new THREE.Raycaster();
+  private readonly _hit = new THREE.Vector3();
+  private readonly _plane = new THREE.Plane();
 
   init(canvas: HTMLCanvasElement): boolean {
     this.canvas = canvas;
@@ -180,20 +162,16 @@ export class Scene3D {
     this.applyCosmetics(cosmetics, run?.t ?? this.idleT);
     this.applyChaosLights(run);
 
-    const lw = layout?.w || cssW || 1;
-    const lh = layout?.h || cssH || 1;
-    this.map = makeMap(lw, lh);
-
     const playing =
       (view === "play" || view === "paused" || view === "summary" || view === "tutorial") && !!run && !!layout;
 
     if (playing && run && layout) {
+      this.aimPlayCamera(layout, run);
       this.layoutStore(layout);
       this.syncProducts(run, layout);
       this.syncCustomers(run, layout, selected, run.t);
       this.syncCat(run, layout, run.t);
       this.syncGhost(ghost, layout, run.t);
-      this.aimPlayCamera(layout, run);
     } else {
       this.layoutMenu(cssW, cssH);
       this.syncMenuProducts(this.idleT);
@@ -546,47 +524,52 @@ export class Scene3D {
     }
   }
 
+  /** Converte pixel CSS → ponto no plano y=const, alinhado ao overlay 2D. */
+  private screenToY(cssX: number, cssY: number, y: number, layout: PlayLayout): THREE.Vector3 | null {
+    if (!this.camera) return null;
+    this._ndc.set((cssX / Math.max(1, layout.w)) * 2 - 1, -(cssY / Math.max(1, layout.h)) * 2 + 1);
+    this._ray.setFromCamera(this._ndc, this.camera);
+    this._plane.setComponents(0, 1, 0, -y);
+    const hit = this._ray.ray.intersectPlane(this._plane, this._hit);
+    return hit;
+  }
+
   private layoutStore(layout: PlayLayout): void {
     const s = layout.shelves;
     const q = layout.queue;
-    const map = this.map;
-    const a = map.to(s.x, s.y, layout.w, layout.h);
-    const b = map.to(s.x + s.w, s.y + s.h, layout.w, layout.h);
-    const cx = (a.x + b.x) / 2;
-    const cz = (a.z + b.z) / 2;
-    const sw = Math.abs(b.x - a.x);
-    const sd = Math.abs(b.z - a.z);
-    if (this.shelfBody) {
-      this.shelfBody.position.set(cx, 0.55, cz);
-      this.shelfBody.scale.set(Math.max(1.4, sw * 0.98), 1.15, Math.max(0.9, sd * 0.92));
-    }
-    if (this.shelfWell) {
-      this.shelfWell.position.set(cx, 0.72, cz);
-      this.shelfWell.scale.set(Math.max(1.2, sw * 0.9), 0.55, Math.max(0.7, sd * 0.78));
-    }
-    const qa = map.to(q.x, q.y + q.h, layout.w, layout.h);
-    const qb = map.to(q.x + q.w, q.y + q.h, layout.w, layout.h);
-    const sa = map.to(s.x, s.y, layout.w, layout.h);
-    if (this.counter) {
-      if (layout.landscape) {
-        const x = (qb.x + sa.x) / 2;
-        this.counter.position.set(x, 0.48, (qa.z + map.to(s.x, s.y + s.h / 2, layout.w, layout.h).z) / 2);
-        this.counter.scale.set(0.7, 0.95, Math.max(2.2, Math.abs(qa.z - map.to(s.x, s.y + s.h, layout.w, layout.h).z) * 0.7));
-      } else {
-        const z = (qa.z + sa.z) / 2;
-        this.counter.position.set(cx, 0.48, z);
-        this.counter.scale.set(Math.max(3.2, sw * 0.88), 0.95, 0.7);
+    const y = 0.52;
+    const a = this.screenToY(s.x, s.y, y, layout);
+    const b = this.screenToY(s.x + s.w, s.y + s.h, y, layout);
+    if (a && b && this.shelfBody) {
+      const cx = (a.x + b.x) / 2;
+      const cz = (a.z + b.z) / 2;
+      const sw = Math.max(0.6, Math.abs(b.x - a.x));
+      const sd = Math.max(0.6, Math.abs(b.z - a.z));
+      this.shelfBody.position.set(cx, y, cz);
+      this.shelfBody.scale.set(sw * 1.02, 0.9, sd * 1.02);
+      if (this.shelfWell) {
+        this.shelfWell.position.set(cx, y + 0.22, cz);
+        this.shelfWell.scale.set(sw * 0.92, 0.4, sd * 0.86);
       }
+    }
+    const qa = this.screenToY(q.x + q.w / 2, q.y + q.h, 0.48, layout);
+    const sa = this.screenToY(s.x + s.w / 2, s.y, 0.48, layout);
+    const left = this.screenToY(s.x, s.y, 0.48, layout);
+    const right = this.screenToY(s.x + s.w, s.y, 0.48, layout);
+    if (this.counter && qa && sa) {
+      this.counter.position.set((qa.x + sa.x) / 2, 0.48, (qa.z + sa.z) / 2);
+      const spanX = left && right ? Math.abs(right.x - left.x) : 5;
+      this.counter.scale.set(layout.landscape ? 0.7 : Math.min(8, Math.max(2.6, spanX * 0.88)), 0.9, 0.62);
       const top = this.store?.getObjectByName("counterTop") as THREE.Mesh | undefined;
       if (top) {
         top.position.copy(this.counter.position);
-        top.position.y = 0.98;
+        top.position.y = 0.96;
         top.scale.set(this.counter.scale.x * 1.04, 0.08, this.counter.scale.z * 1.12);
       }
     }
-    if (this.signGroup) {
-      const mid = map.to(q.x + q.w / 2, q.y, layout.w, layout.h);
-      this.signGroup.position.set(mid.x, 3.35, mid.z - 0.4);
+    const mid = this.screenToY(q.x + q.w / 2, q.y + 8, 3.1, layout);
+    if (this.signGroup && mid) {
+      this.signGroup.position.set(mid.x, 3.1, mid.z);
     }
   }
 
@@ -617,12 +600,17 @@ export class Scene3D {
     for (const cell of cells) {
       const mesh = this.products.get(cell.id);
       if (!mesh) continue;
-      const c = this.map.to(cell.rect.x + cell.rect.w / 2, cell.rect.y + cell.rect.h * 0.42, layout.w, layout.h);
-      const scale = Math.min(cell.rect.w / layout.w, cell.rect.h / layout.h) * this.map.d * 2.15;
+      const y = 1.18;
+      const hit = this.screenToY(cell.rect.x + cell.rect.w / 2, cell.rect.y + cell.rect.h * 0.4, y, layout);
+      if (!hit) continue;
+      const hx = hit.x;
+      const hz = hit.z;
+      const edge = this.screenToY(cell.rect.x + cell.rect.w * 0.78, cell.rect.y + cell.rect.h * 0.4, y, layout);
+      const span = edge ? Math.hypot(edge.x - hx, edge.z - hz) * 1.65 : 0.8;
       mesh.visible = true;
-      mesh.position.set(c.x, 1.22, c.z);
-      mesh.scale.setScalar(Math.max(0.85, Math.min(1.85, scale)));
-      mesh.rotation.y = Math.sin(run.t * 1.4 + cell.rect.x * 0.02) * (this.fx.reduceMotion ? 0 : 0.12);
+      mesh.position.set(hx, y, hz);
+      mesh.scale.setScalar(Math.max(0.5, Math.min(1.05, span)));
+      mesh.rotation.y = this.fx.reduceMotion ? 0 : Math.sin(run.t * 1.2 + cell.rect.x * 0.02) * 0.08;
       const blocked =
         catBlock &&
         cell.rect.x - 8 <= catBlock.x &&
@@ -728,12 +716,15 @@ export class Scene3D {
       oy -= Math.sin(Math.min(1, c.anim * 2) * Math.PI) * 0.28;
       scale = 1 + Math.sin(Math.min(1, c.anim * 2) * Math.PI) * 0.08;
     }
-    const bob = c.mood === "wait" ? Math.sin(t * 3 + c.id) * 0.04 : 0;
-    const p = this.map.to(slot.x + slot.w / 2, slot.y + slot.h * 0.9, layout.w, layout.h);
+    const bob = c.mood === "wait" ? Math.sin(t * 3 + c.id) * 0.03 : 0;
+    const hit = this.screenToY(slot.x + slot.w / 2, slot.y + slot.h * 0.78, 0, layout);
+    if (!hit) {
+      rig.root.visible = false;
+      return;
+    }
     rig.root.visible = c.mood !== "leave" || c.anim < 0.95;
-    rig.root.position.set(p.x + ox, Math.max(0, oy + bob), p.z);
-    const slotScale = (Math.min(slot.w, slot.h) / Math.max(layout.h, 1)) * this.map.d * 1.55;
-    rig.root.scale.setScalar(Math.max(1.15, Math.min(2.1, slotScale)) * scale);
+    rig.root.position.set(hit.x + ox * 0.35, Math.max(0, oy * 0.4 + bob), hit.z);
+    rig.root.scale.setScalar(Math.max(0.72, Math.min(1.05, (slot.h / Math.max(layout.h, 1)) * 8)) * scale);
     rig.root.rotation.y = rot;
     rig.armL.rotation.x = c.mood === "happy" ? -0.9 : c.mood === "rage" ? 0.5 : 0;
     rig.armR.rotation.x = c.mood === "happy" ? -0.9 : c.mood === "rage" ? 0.5 : 0;
@@ -747,9 +738,10 @@ export class Scene3D {
     const on = run.chaos?.kind === "gato";
     this.cat.visible = !!on;
     if (!on) return;
-    const p = this.map.to(layout.shelves.x + run.catX * layout.shelves.w, layout.catY, layout.w, layout.h);
-    this.cat.position.set(p.x, 1.15 + Math.sin(t * 8) * 0.05, p.z);
-    this.cat.scale.setScalar(1.1);
+    const hit = this.screenToY(layout.shelves.x + run.catX * layout.shelves.w, layout.catY, 1.2, layout);
+    if (!hit) return;
+    this.cat.position.set(hit.x, 1.2 + Math.sin(t * 8) * 0.05, hit.z);
+    this.cat.scale.setScalar(0.85);
   }
 
   private syncGhost(ghost: { x: number; y: number; id: ProductId } | null, layout: PlayLayout, t: number): void {
@@ -759,10 +751,14 @@ export class Scene3D {
       return;
     }
     const src = this.products.get(ghost.id);
+    const hit = this.screenToY(ghost.x, ghost.y, 1.55, layout);
+    if (!hit) {
+      this.ghostMesh.visible = false;
+      return;
+    }
     this.ghostMesh.visible = true;
-    const p = this.map.to(ghost.x, ghost.y, layout.w, layout.h);
-    this.ghostMesh.position.set(p.x, 1.6 + Math.sin(t * 6) * 0.08, p.z);
-    this.ghostMesh.scale.setScalar(1.15);
+    this.ghostMesh.position.set(hit.x, 1.55 + Math.sin(t * 6) * 0.08, hit.z);
+    this.ghostMesh.scale.setScalar(1.05);
     this.ghostMesh.rotation.y = t * 2;
     if (src) this.ghostMesh.visible = true;
   }
