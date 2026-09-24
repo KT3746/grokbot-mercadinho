@@ -1,6 +1,7 @@
 import { execSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
 
 function resolveBuildId(): string {
@@ -36,6 +37,14 @@ export default defineConfig({
     __BUILD_ID__: JSON.stringify(buildId),
   },
   plugins: [cacheBustPlugin(buildId)],
+  resolve: {
+    alias: {
+      three: fileURLToPath(new URL("./public/js/vendor/three.module.js", import.meta.url)),
+    },
+  },
+  optimizeDeps: {
+    include: ["three"],
+  },
   server: {
     host: true,
     port: 5173,
@@ -44,14 +53,18 @@ export default defineConfig({
     host: true,
     port: 4173,
   },
-  build: {
+    build: {
     target: "es2022",
     sourcemap: false,
+    chunkSizeWarningLimit: 700,
     rollupOptions: {
       output: {
         entryFileNames: "assets/[name]-[hash].js",
         chunkFileNames: "assets/[name]-[hash].js",
         assetFileNames: "assets/[name]-[hash][extname]",
+        manualChunks(id) {
+          if (id.includes("three")) return "three";
+        },
       },
     },
   },

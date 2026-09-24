@@ -50,7 +50,7 @@ O jogo detecta celular e computador. No telefone, só o dedo. No desktop, mouse 
 
 Eventos: **apagão** (a loja escurece), **liquidação** (as prateleiras trocam de lugar), **gato** (bloqueia uma gôndola) e **hora do rush** (dois clientes de uma vez).
 
-O recorde fica salvo neste navegador.
+O recorde fica salvo neste navegador. O visual da loja é **3D baixo-poli** (Three.js no próprio repositório, sem CDN). Se o WebGL não ligar, o jogo segue no canvas 2D clássico.
 
 ## Rodar localmente
 

@@ -38,6 +38,7 @@ export function drawShop(
   ghost: PointerGhost,
   selectedId: number | null,
   cosmetics: CosmeticPalette = DEFAULT_PALETTE,
+  overlay = false,
 ): void {
   const { w, h } = layout;
   ctx.clearRect(0, 0, w, h);
@@ -48,12 +49,14 @@ export function drawShop(
     ctx.translate((Math.random() - 0.5) * amp, (Math.random() - 0.5) * amp);
   }
 
-  paintWall(ctx, w, h, layout, t, cosmetics);
-  paintFloor(ctx, layout);
-  paintQueueZone(ctx, layout);
-  for (const c of run.customers) drawCustomer(ctx, c, layout, t);
-  paintShelves(ctx, layout, run, t, cosmetics);
-  if (run.chaos?.kind === "gato") drawCat(ctx, layout, run, t);
+  if (!overlay) {
+    paintWall(ctx, w, h, layout, t, cosmetics);
+    paintFloor(ctx, layout);
+    paintQueueZone(ctx, layout);
+  }
+  for (const c of run.customers) drawCustomer(ctx, c, layout, t, overlay);
+  paintShelves(ctx, layout, run, t, cosmetics, overlay);
+  if (!overlay && run.chaos?.kind === "gato") drawCat(ctx, layout, run, t);
   drawParticles(ctx, run.particles, layout);
   // Urgência: vinheta vermelha quando alguém está no limite.
   let critical = 0;
@@ -180,44 +183,54 @@ function paintShelves(
   run: Run,
   t: number,
   cos: CosmeticPalette = DEFAULT_PALETTE,
+  overlay = false,
 ): void {
   const s = layout.shelves;
-  ctx.fillStyle = "#12100c";
-  roundRect(ctx, s.x - 8, s.y - 8, s.w + 16, s.h + 16, 16);
-  ctx.fill();
-  const shelfGrad = ctx.createLinearGradient(s.x, s.y, s.x, s.y + s.h);
-  shelfGrad.addColorStop(0, cos.shelfAccent);
-  shelfGrad.addColorStop(1, cos.shelfDeep);
-  ctx.fillStyle = shelfGrad;
-  roundRect(ctx, s.x, s.y, s.w, s.h, 13);
-  ctx.fill();
-  ctx.strokeStyle = cos.shelfStroke;
-  ctx.lineWidth = 2;
-  roundRect(ctx, s.x + 1, s.y + 1, s.w - 2, s.h - 2, 12);
-  ctx.stroke();
+  if (!overlay) {
+    ctx.fillStyle = "#12100c";
+    roundRect(ctx, s.x - 8, s.y - 8, s.w + 16, s.h + 16, 16);
+    ctx.fill();
+    const shelfGrad = ctx.createLinearGradient(s.x, s.y, s.x, s.y + s.h);
+    shelfGrad.addColorStop(0, cos.shelfAccent);
+    shelfGrad.addColorStop(1, cos.shelfDeep);
+    ctx.fillStyle = shelfGrad;
+    roundRect(ctx, s.x, s.y, s.w, s.h, 13);
+    ctx.fill();
+    ctx.strokeStyle = cos.shelfStroke;
+    ctx.lineWidth = 2;
+    roundRect(ctx, s.x + 1, s.y + 1, s.w - 2, s.h - 2, 12);
+    ctx.stroke();
+  }
   const cells = applyShelfOrder(layout.cells, run.shelfOrder.length === layout.cells.length ? run.shelfOrder : layout.cells.map((c) => c.id));
   const showKeys = !wantsTouchCopy();
   cells.forEach((cell, i) => {
     const blocked = catBlocks(run, layout, cell.rect);
-    const cellGrad = ctx.createLinearGradient(cell.rect.x, cell.rect.y, cell.rect.x, cell.rect.y + cell.rect.h);
-    if (blocked) {
-      cellGrad.addColorStop(0, "rgba(10, 10, 10, 0.72)");
-      cellGrad.addColorStop(1, "rgba(6, 6, 6, 0.8)");
+    if (!overlay) {
+      const cellGrad = ctx.createLinearGradient(cell.rect.x, cell.rect.y, cell.rect.x, cell.rect.y + cell.rect.h);
+      if (blocked) {
+        cellGrad.addColorStop(0, "rgba(10, 10, 10, 0.72)");
+        cellGrad.addColorStop(1, "rgba(6, 6, 6, 0.8)");
+      } else {
+        cellGrad.addColorStop(0, "rgba(48, 38, 28, 0.98)");
+        cellGrad.addColorStop(1, "rgba(28, 22, 16, 0.98)");
+      }
+      ctx.fillStyle = cellGrad;
+      roundRect(ctx, cell.rect.x, cell.rect.y, cell.rect.w, cell.rect.h, 12);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(227, 178, 60, 0.34)";
+      ctx.lineWidth = 2;
+      roundRect(ctx, cell.rect.x, cell.rect.y, cell.rect.w, cell.rect.h, 12);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(247, 236, 212, 0.08)";
+      ctx.lineWidth = 1;
+      roundRect(ctx, cell.rect.x + 2, cell.rect.y + 2, cell.rect.w - 4, cell.rect.h - 4, 10);
+      ctx.stroke();
     } else {
-      cellGrad.addColorStop(0, "rgba(48, 38, 28, 0.98)");
-      cellGrad.addColorStop(1, "rgba(28, 22, 16, 0.98)");
+      ctx.strokeStyle = blocked ? "rgba(10, 10, 10, 0.45)" : "rgba(247, 236, 212, 0.16)";
+      ctx.lineWidth = 1.5;
+      roundRect(ctx, cell.rect.x, cell.rect.y, cell.rect.w, cell.rect.h, 12);
+      ctx.stroke();
     }
-    ctx.fillStyle = cellGrad;
-    roundRect(ctx, cell.rect.x, cell.rect.y, cell.rect.w, cell.rect.h, 12);
-    ctx.fill();
-    ctx.strokeStyle = "rgba(227, 178, 60, 0.34)";
-    ctx.lineWidth = 2;
-    roundRect(ctx, cell.rect.x, cell.rect.y, cell.rect.w, cell.rect.h, 12);
-    ctx.stroke();
-    ctx.strokeStyle = "rgba(247, 236, 212, 0.08)";
-    ctx.lineWidth = 1;
-    roundRect(ctx, cell.rect.x + 2, cell.rect.y + 2, cell.rect.w - 4, cell.rect.h - 4, 10);
-    ctx.stroke();
     if (run.holding === cell.id) {
       ctx.save();
       ctx.shadowColor = "rgba(227, 178, 60, 0.7)";
@@ -230,7 +243,7 @@ function paintShelves(
     }
     const cx = cell.rect.x + cell.rect.w / 2;
     const cy = cell.rect.y + cell.rect.h * 0.36;
-    const size = Math.min(cell.rect.w, cell.rect.h) * 0.72;
+    const size = Math.min(cell.rect.w, cell.rect.h) * (overlay ? 0.58 : 0.72);
     drawProduct(ctx, cell.id, cx, cy, size, t, run.holding === cell.id);
     const p = PRODUCT_BY_ID[cell.id];
     const labelSize = Math.max(12, Math.min(16, cell.rect.w * 0.2));
@@ -297,7 +310,13 @@ function drawCat(ctx: CanvasRenderingContext2D, layout: PlayLayout, run: Run, t:
 }
 
 
-function drawCustomer(ctx: CanvasRenderingContext2D, c: Customer, layout: PlayLayout, t: number): void {
+function drawCustomer(
+  ctx: CanvasRenderingContext2D,
+  c: Customer,
+  layout: PlayLayout,
+  t: number,
+  overlay = false,
+): void {
   const slot = layout.slots[c.slot];
   if (!slot) return;
   const arch = ARCHETYPES.find((a) => a.id === c.arch) ?? ARCHETYPES[0]!;
@@ -338,70 +357,70 @@ function drawCustomer(ctx: CanvasRenderingContext2D, c: Customer, layout: PlayLa
   }
   const cx = slot.x + slot.w / 2 + ox;
   const cy = slot.y + slot.h * 0.62 + oy + Math.sin(t * 3 + c.id) * (c.mood === "wait" ? 2 : 0.5);
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.translate(cx, cy);
-  ctx.rotate(rot);
-  ctx.scale(scale, scale);
-  ctx.fillStyle = "rgba(0,0,0,0.16)";
-  ctx.beginPath();
-  ctx.ellipse(0, 26, 18, 6, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = arch.shirt;
-  roundRect(ctx, -16, 0, 32, 26, 8);
-  ctx.fill();
-  // Braços leves: felizes abrem, raiva cruzam vibração.
-  ctx.strokeStyle = arch.shirt;
-  ctx.lineWidth = 5;
-  ctx.lineCap = "round";
-  if (c.mood === "happy") {
+  if (!overlay) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+    ctx.scale(scale, scale);
+    ctx.fillStyle = "rgba(0,0,0,0.16)";
     ctx.beginPath();
-    ctx.moveTo(-14, 6);
-    ctx.lineTo(-22, -6);
-    ctx.moveTo(14, 6);
-    ctx.lineTo(22, -6);
-    ctx.stroke();
-  } else if (c.mood === "rage") {
+    ctx.ellipse(0, 26, 18, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = arch.shirt;
+    roundRect(ctx, -16, 0, 32, 26, 8);
+    ctx.fill();
+    ctx.strokeStyle = arch.shirt;
+    ctx.lineWidth = 5;
+    ctx.lineCap = "round";
+    if (c.mood === "happy") {
+      ctx.beginPath();
+      ctx.moveTo(-14, 6);
+      ctx.lineTo(-22, -6);
+      ctx.moveTo(14, 6);
+      ctx.lineTo(22, -6);
+      ctx.stroke();
+    } else if (c.mood === "rage") {
+      ctx.beginPath();
+      ctx.moveTo(-12, 8);
+      ctx.lineTo(-18, 18);
+      ctx.moveTo(12, 8);
+      ctx.lineTo(18, 18);
+      ctx.stroke();
+    }
+    ctx.fillStyle = arch.skin;
     ctx.beginPath();
-    ctx.moveTo(-12, 8);
-    ctx.lineTo(-18, 18);
-    ctx.moveTo(12, 8);
-    ctx.lineTo(18, 18);
-    ctx.stroke();
-  }
-  ctx.fillStyle = arch.skin;
-  ctx.beginPath();
-  ctx.arc(0, -12, 13, 0, Math.PI * 2);
-  ctx.fill();
-  drawHair(ctx, arch.hairStyle, arch.hair);
-  const impatient = c.mood === "wait" && c.patience / c.patienceMax < 0.35;
-  ctx.fillStyle = "#2a1d12";
-  ctx.beginPath();
-  ctx.arc(-4.5, -13, impatient ? 2.1 : 1.7, 0, Math.PI * 2);
-  ctx.arc(4.5, -13, impatient ? 2.1 : 1.7, 0, Math.PI * 2);
-  ctx.fill();
-  if (c.mood === "rage") {
-    // Sobrancelhas zangadas
+    ctx.arc(0, -12, 13, 0, Math.PI * 2);
+    ctx.fill();
+    drawHair(ctx, arch.hairStyle, arch.hair);
+    const impatient = c.mood === "wait" && c.patience / c.patienceMax < 0.35;
+    ctx.fillStyle = "#2a1d12";
+    ctx.beginPath();
+    ctx.arc(-4.5, -13, impatient ? 2.1 : 1.7, 0, Math.PI * 2);
+    ctx.arc(4.5, -13, impatient ? 2.1 : 1.7, 0, Math.PI * 2);
+    ctx.fill();
+    if (c.mood === "rage") {
+      ctx.strokeStyle = "#2a1d12";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-7, -17);
+      ctx.lineTo(-2, -15);
+      ctx.moveTo(7, -17);
+      ctx.lineTo(2, -15);
+      ctx.stroke();
+    }
     ctx.strokeStyle = "#2a1d12";
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(-7, -17);
-    ctx.lineTo(-2, -15);
-    ctx.moveTo(7, -17);
-    ctx.lineTo(2, -15);
+    if (c.mood === "happy") ctx.arc(0, -8, 5, 0.15, Math.PI - 0.15);
+    else if (c.mood === "rage") ctx.arc(0, -4, 5, Math.PI + 0.2, -0.2);
+    else if (impatient) {
+      ctx.moveTo(-5, -7);
+      ctx.lineTo(5, -7);
+    } else ctx.arc(0, -8, 4, 0.2, Math.PI - 0.2);
     ctx.stroke();
+    ctx.restore();
   }
-  ctx.strokeStyle = "#2a1d12";
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  if (c.mood === "happy") ctx.arc(0, -8, 5, 0.15, Math.PI - 0.15);
-  else if (c.mood === "rage") ctx.arc(0, -4, 5, Math.PI + 0.2, -0.2);
-  else if (impatient) {
-    ctx.moveTo(-5, -7);
-    ctx.lineTo(5, -7);
-  } else ctx.arc(0, -8, 4, 0.2, Math.PI - 0.2);
-  ctx.stroke();
-  ctx.restore();
 
   const barH = 15;
   const barW = Math.min(slot.w - 12, 148);

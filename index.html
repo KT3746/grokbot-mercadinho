@@ -25,10 +25,21 @@
       href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@500;600;700;800&display=swap"
       rel="stylesheet"
     />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./js/vendor/three.module.js?v=__BUILD_ID__"
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="app">
+      <canvas id="scene3d" aria-hidden="true"></canvas>
       <canvas id="scene" aria-label="Área do jogo: clientes e prateleiras"></canvas>
+      <p id="webgl-fail" hidden role="status">
+        Não deu pra ligar o gráfico 3D neste aparelho. O MERCADINHO segue no visual clássico.
+      </p>
       <div id="hud" hidden>
         <div class="hud-brand">
           <div class="hud-shop" id="hud-shop">MERCADINHO</div>

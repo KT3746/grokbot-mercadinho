@@ -191,7 +191,7 @@ export class Screens {
           <h2>Créditos</h2>
           <div class="sheet">
             <p><b>${GAME_TITLE}</b> é um jogo original de atendimento no navegador. Nenhuma marca de mercado real, mascote emprestado ou IP de terceiros — só um mercadinho inventado e uma fila impaciente.</p>
-            <p>Canvas 2D · TypeScript · Vite · áudio procedural (Web Audio). Feito para celular e computador.</p>
+            <p>Three.js local (baixo-poli) · canvas 2D de reserva · TypeScript · Vite · áudio procedural (Web Audio). Feito para celular e computador.</p>
             <p>MIT · KT3746</p>
           </div>
         </div>
