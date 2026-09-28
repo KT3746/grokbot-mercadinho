@@ -109,7 +109,8 @@ export class Game {
     this.last = performance.now();
     const loop = (now: number) => {
       requestAnimationFrame(loop);
-      if (this.hidden) {
+      /* Aba oculta: não simula nem renderiza (dt efetivo = 0). */
+      if (this.hidden || document.hidden) {
         this.last = now;
         return;
       }
@@ -170,19 +171,39 @@ export class Game {
   }
 
   private onVisibility(): void {
-    if (document.visibilityState !== "hidden") {
+    if (!document.hidden) {
       window.clearTimeout(this.hidePauseTimer);
       this.hidden = false;
+      /* Continuar na pausa: áudio só volta com resume / Continuar. */
       return;
     }
+    try {
+      this.audio.suspend();
+    } catch {
+      /* ok */
+    }
+    this.hidden = true;
     if (performance.now() < this.ignoreVisibilityUntil) return;
     window.clearTimeout(this.hidePauseTimer);
-    this.hidePauseTimer = window.setTimeout(() => {
-      if (document.visibilityState !== "hidden") return;
-      if (performance.now() < this.ignoreVisibilityUntil) return;
-      this.hidden = true;
-      if (this.view === "play" && !this.run?.tutorial && !this.run?.awaitingSummary) this.pause();
-    }, 2500);
+    if (this.view === "play" && this.run && !this.run.tutorial && !this.run.awaitingSummary) {
+      this.forcePauseFromVisibility();
+    }
+  }
+
+  /** Pausa forçada pela aba oculta — ignora play-guard do botão Pausa. */
+  private forcePauseFromVisibility(): void {
+    if (this.view !== "play" || this.run?.tutorial || this.run?.awaitingSummary) return;
+    this.clearDrag();
+    this.view = "paused";
+    this.audio.setPressure(0);
+    this.audio.hushBed();
+    try {
+      this.audio.suspend();
+    } catch {
+      /* ok */
+    }
+    this.ui.pause(this.save.muted);
+    this.syncChrome();
   }
 
   private swallowPauseHit(e: Event): boolean {
@@ -720,7 +741,8 @@ export class Game {
     this.cssH = h;
     const mobile = w < 700;
     const reduce = prefersReducedMotion();
-    this.dpr = Math.min(window.devicePixelRatio || 1, reduce ? 1.25 : mobile ? 1.35 : 2);
+    // Cap phone ~1.25 (mesmo bar KART/TETROK/1945); desktop até 2.
+    this.dpr = Math.min(window.devicePixelRatio || 1, reduce || mobile ? 1.25 : 2);
     this.canvas.width = Math.floor(w * this.dpr);
     this.canvas.height = Math.floor(h * this.dpr);
     this.canvas.style.width = `${w}px`;
@@ -882,6 +904,11 @@ export class Game {
     this.view = "paused";
     this.audio.setPressure(0);
     this.audio.hushBed();
+    try {
+      this.audio.suspend();
+    } catch {
+      /* ok */
+    }
     this.ui.pause(this.save.muted);
     this.syncChrome();
   }
@@ -891,6 +918,11 @@ export class Game {
     this.view = "play";
     this.ui.root.innerHTML = "";
     this.syncChrome();
+    try {
+      this.audio.resume();
+    } catch {
+      /* ok */
+    }
     this.audio.unhushBed();
     this.playGuard(180, 400);
     document.getElementById("btn-speed")?.blur();

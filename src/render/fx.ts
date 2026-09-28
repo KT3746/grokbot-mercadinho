@@ -28,7 +28,7 @@ export function detectFx(): FxProfile {
     lowFx,
     mobile,
     reduceMotion,
-    dprCap: lowFx ? 1.15 : mobile ? 1.25 : 1.5,
+    dprCap: lowFx || mobile ? 1.25 : 1.5,
     antialias: !lowFx && !mobile,
     shadows: false,
   };
