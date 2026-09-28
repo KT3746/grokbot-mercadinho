@@ -71,6 +71,29 @@ export class Sfx {
     return this.muted;
   }
 
+  /** Aba oculta / pausa: corta o AudioContext pra não vazar bed no fundo. */
+  suspend(): void {
+    this.pauseBedTimers();
+    if (this.ctx && this.ctx.state === "running") {
+      try {
+        void this.ctx.suspend();
+      } catch {
+        /* ok */
+      }
+    }
+  }
+
+  resume(): void {
+    if (this.muted) return;
+    if (this.ctx && this.ctx.state === "suspended") {
+      try {
+        void this.ctx.resume();
+      } catch {
+        /* ok */
+      }
+    }
+  }
+
   private tone(freq: number, dur: number, type: OscillatorType, gain = 0.12, slide?: number): void {
     if (!this.ctx || !this.master || this.muted) return;
     const o = this.ctx.createOscillator();

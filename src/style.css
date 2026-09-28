@@ -81,8 +81,16 @@ body.webgl-on .screen.title-screen h1 {
 #scene {
   display: block;
   z-index: 1;
-  touch-action: manipulation;
+  touch-action: none;
   cursor: pointer;
+  /* Fora do expediente o canvas não rouba toque do menu (#ui). */
+  pointer-events: none;
+}
+body.is-play #scene,
+body[data-view="tutorial"] #scene,
+body[data-view="summary"] #scene,
+body[data-view="paused"] #scene {
+  pointer-events: auto;
 }
 
 #webgl-fail {
@@ -210,7 +218,8 @@ body.play-guard #btn-pause,
 }
 
 .hud-hand .icon-btn {
-  min-height: 36px;
+  min-height: 44px;
+  min-width: 44px;
   margin-top: 4px;
   width: 100%;
 }
@@ -761,8 +770,9 @@ h2 {
   }
   .hud-hand .icon-btn,
   .icon-btn {
-    min-height: 34px;
-    padding: 6px 10px;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px 12px;
     font-size: 13px;
   }
   .hud-score-line {
@@ -1345,12 +1355,113 @@ body.tutor-lookalike #scene::after {
   body.tutor-speed #btn-speed {
     animation: none !important;
   }
+  .btn,
+  .icon-btn,
+  .cos-card,
+  .tutorial-skip {
+    transition: none;
+  }
   .btn:active,
-  .icon-btn:active {
-    transform: none;
+  .icon-btn:active,
+  .cos-card:active {
+    transform: none !important;
+    filter: none !important;
   }
   #tutor-spot {
     transition: none;
     box-shadow: 0 0 0 9999px rgba(8, 6, 4, 0.22);
+  }
+}
+
+
+/* === Mobile polish (~390px / paisagem baixa) — mesmo bar KART/TETROK/1945 === */
+@media (orientation: portrait) and (max-width: 390px) {
+  #hud {
+    gap: 3px;
+    padding: calc(4px + var(--safe-t)) 8px 4px;
+  }
+  .hud-shop {
+    font-size: 18px;
+  }
+  .hud-cluster.left {
+    padding: 4px 7px;
+    min-width: 0;
+    border-radius: 12px;
+  }
+  #hud-score {
+    font-size: 18px;
+  }
+  .hud-label {
+    font-size: 9px;
+  }
+  .hud-goals {
+    font-size: 9px;
+    max-width: 140px;
+  }
+  #hud-combo,
+  .combo-meter {
+    padding: 2px 5px 3px;
+    gap: 4px;
+  }
+  .combo-value,
+  #hud-combo-val {
+    font-size: 14px;
+  }
+  .hud-hand {
+    padding: 4px 7px;
+  }
+  #hud-hand-name {
+    font-size: 15px;
+  }
+  .icon-btn,
+  #btn-speed,
+  #btn-pause,
+  #btn-drop,
+  .hud-hand .icon-btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .toast-stack {
+    max-width: min(90vw, 280px);
+  }
+  .screen {
+    padding: calc(12px + var(--safe-t)) 12px calc(14px + var(--safe-b));
+  }
+  h1 {
+    font-size: clamp(32px, 10vw, 44px);
+  }
+}
+
+@media (orientation: landscape) and (max-height: 430px) {
+  #hud {
+    gap: 2px;
+    padding: calc(2px + var(--safe-t)) 8px 2px;
+  }
+  .hud-shop {
+    font-size: 16px;
+  }
+  .hud-brand {
+    padding-bottom: 0;
+  }
+  .hud-cluster.left {
+    padding: 3px 6px;
+  }
+  #hud-score {
+    font-size: 16px;
+  }
+  .icon-btn,
+  #btn-speed,
+  #btn-pause,
+  #btn-drop {
+    min-height: 40px;
+    min-width: 40px;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  .hud-hand .icon-btn {
+    min-height: 40px;
+  }
+  .toast-stack {
+    max-width: min(70vw, 260px);
   }
 }
