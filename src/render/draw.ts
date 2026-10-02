@@ -431,6 +431,16 @@ function drawCustomer(
   const ratio = clamp01(c.patience / c.patienceMax);
   const barColor = ratio > 0.55 ? "#4caf5a" : ratio > 0.32 ? "#e3b23c" : "#e05228";
   const barEdge = ratio > 0.55 ? "rgba(76,175,90,0.7)" : ratio > 0.32 ? "rgba(227,178,60,0.85)" : "rgba(224,82,40,0.95)";
+  const urgent = c.mood === "wait" && ratio < 0.35;
+  if (urgent) {
+    const pulse = 0.55 + 0.45 * Math.abs(Math.sin(t * 6.5));
+    ctx.save();
+    ctx.strokeStyle = `rgba(224, 82, 40, ${0.35 + pulse * 0.45})`;
+    ctx.lineWidth = 3.2;
+    roundRect(ctx, barX - 3, barY - 3, barW + 6, barH + 6, 9);
+    ctx.stroke();
+    ctx.restore();
+  }
   ctx.fillStyle = "rgba(12, 10, 8, 0.88)";
   roundRect(ctx, barX, barY, barW, barH, 7);
   ctx.fill();
@@ -446,10 +456,11 @@ function drawCustomer(
   roundRect(ctx, barX + 2, barY + 2, fillW, Math.max(2, (barH - 4) * 0.35), 4);
   ctx.fill();
 
-  ctx.fillStyle = "#e8dcc8";
+  ctx.fillStyle = urgent ? "#ffb4a2" : "#e8dcc8";
   ctx.font = "800 12px Nunito, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText(c.special ? `${arch.name} ★` : arch.name, slot.x + slot.w / 2 + ox, barY + 26, slot.w - 8);
+  const nameLabel = c.special ? `${arch.name} ★` : arch.name;
+  ctx.fillText(urgent ? `! ${nameLabel}` : nameLabel, slot.x + slot.w / 2 + ox, barY + 26, slot.w - 8);
 
   const bubbleW = slot.w - 8;
   const bubbleH = Math.min(88, Math.max(58, slot.h * 0.4));

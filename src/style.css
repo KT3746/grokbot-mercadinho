@@ -1465,3 +1465,87 @@ body.tutor-lookalike #scene::after {
     max-width: min(70vw, 260px);
   }
 }
+
+
+/* —— Polish-3: first tip, juice flash, tab-pause, impatient cue —— */
+#first-tip {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: max(18px, calc(env(safe-area-inset-bottom, 0px) + 12px));
+  z-index: 17;
+  pointer-events: none;
+  max-width: min(94vw, 420px);
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: rgba(18, 28, 22, 0.94);
+  border: 2px solid rgba(125, 255, 154, 0.55);
+  color: #d8f5e2;
+  font-weight: 800;
+  font-size: 14px;
+  line-height: 1.35;
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), 0 0 18px rgba(125, 255, 154, 0.12);
+}
+#first-tip[hidden] {
+  display: none !important;
+}
+
+#juice {
+  position: fixed;
+  inset: 0;
+  z-index: 7;
+  pointer-events: none;
+  opacity: 0;
+}
+#juice.juice-serve {
+  background: radial-gradient(ellipse at 50% 35%, rgba(125, 255, 154, 0.28), transparent 55%);
+  animation: juice-pop 0.28s ease-out forwards;
+}
+#juice.juice-sale {
+  background: radial-gradient(ellipse at 50% 40%, rgba(227, 178, 60, 0.32), transparent 60%);
+  animation: juice-pop 0.42s ease-out forwards;
+}
+#juice[hidden] {
+  display: none !important;
+}
+@keyframes juice-pop {
+  0% { opacity: 1; transform: scale(1); }
+  55% { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+
+.overlay.pause-from-tab .panel {
+  border-color: rgba(227, 178, 60, 0.55);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(227, 178, 60, 0.2);
+}
+.overlay.pause-from-tab .eyebrow {
+  color: #e3b23c;
+}
+
+/* Touch targets: HUD controls ≥48px on coarse pointers */
+@media (pointer: coarse) {
+  #btn-speed,
+  #btn-pause,
+  #btn-drop,
+  .hud-cluster.right .icon-btn {
+    min-height: 48px;
+    min-width: 48px;
+    padding: 10px 14px;
+  }
+  #btn-pause {
+    min-width: 56px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #juice,
+  #juice.juice-serve,
+  #juice.juice-sale {
+    animation: none !important;
+    opacity: 0 !important;
+  }
+  #first-tip {
+    transition: none;
+  }
+}

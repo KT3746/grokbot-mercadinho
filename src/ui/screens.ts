@@ -266,13 +266,19 @@ export class Screens {
       </section>`);
   }
 
-  pause(muted: boolean): void {
+  pause(muted: boolean, reason: "manual" | "visibility" = "manual"): void {
+    const fromTab = reason === "visibility";
+    const eyebrow = fromTab ? "Aba oculta · expediente pausado" : "Expediente interrompido";
+    const title = fromTab ? "Volte pra fila" : "Pausa";
+    const lede = fromTab
+      ? "A aba ficou em segundo plano — a fila congelou sozinha. Toque em Continuar pra retomar."
+      : "A fila congelou. Você não.";
     this.set(`
-      <section class="overlay">
+      <section class="overlay${fromTab ? " pause-from-tab" : ""}">
         <div class="panel premium-panel">
-          <div class="eyebrow">Expediente interrompido</div>
-          <h2>Pausa</h2>
-          <p class="lede">A fila congelou. Você não.</p>
+          <div class="eyebrow">${eyebrow}</div>
+          <h2>${title}</h2>
+          <p class="lede">${lede}</p>
           <div class="stack">
             <button type="button" class="btn primary cta" data-act="resume">Continuar</button>
             <button type="button" class="btn" data-act="mute">${muted ? "Ativar som" : "Mudo"}</button>
