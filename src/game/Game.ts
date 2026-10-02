@@ -1,6 +1,6 @@
 import { Sfx } from "../audio/sfx";
 import { BUILD_ID, COMBO_WINDOW, GAME_TITLE, HUD_H_LANDSCAPE, HUD_H_PORTRAIT, prefersReducedMotion, wantsTouchCopy } from "../config";
-import { PRODUCT_BY_ID, TOASTS, productsUnlocked } from "../data/catalog";
+import { ARCHETYPES, PRODUCT_BY_ID, TOASTS, productsUnlocked } from "../data/catalog";
 import {
   applyShift,
   createRun,
@@ -23,6 +23,12 @@ import {
   type CosmeticPalette,
 } from "../data/cosmetics";
 import { loadSave, pushRunHistory, writeSave } from "../persist";
+import {
+  loadDailyMeta,
+  recordDailyRun,
+  softDailyTargets,
+  type DailyMeta,
+} from "../dailyMeta";
 import { computeLayout, contains, type PlayLayout } from "../render/layout";
 import { drawProduct, drawShop, hitCustomer, hitProduct, type PointerGhost } from "../render/draw";
 import { Scene3D } from "../render/scene3d";
@@ -51,7 +57,9 @@ export class Game {
   private hud: HTMLElement;
   private hurtEl: HTMLElement | null = null;
   private juiceEl: HTMLElement | null = null;
+  private registerPopEl: HTMLElement | null = null;
   private tipEl: HTMLElement | null = null;
+  private daily: DailyMeta = loadDailyMeta();
   private tipActive = false;
   private tipDeadline = 0;
   private pauseReason: "manual" | "visibility" = "manual";
@@ -95,7 +103,9 @@ export class Game {
     this.hud = document.getElementById("hud")!;
     this.hurtEl = document.getElementById("hurt");
     this.juiceEl = document.getElementById("juice");
+    this.registerPopEl = document.getElementById("register-pop");
     this.tipEl = document.getElementById("first-tip");
+    this.daily = loadDailyMeta();
     const shop = document.getElementById("hud-shop");
     if (shop) shop.textContent = GAME_TITLE;
     this.bind();
@@ -536,7 +546,8 @@ export class Game {
         }
         this.popScore(ev.score, ev.combo, ev.customerId, at);
         this.flashCombo();
-        this.flashJuice("serve");
+        this.flashJuice(ev.combo >= 3 ? "combo" : "serve");
+        this.popRegister(ev.score, ev.combo);
         this.dismissFirstTip();
         if (ev.combo === 3 || ev.combo === 5 || ev.combo === 8) {
           this.toast(`Combo ×${ev.combo}!`, 900, "ok");
@@ -825,7 +836,8 @@ export class Game {
     if (spotEl) spotEl.hidden = true;
     syncUnlocks(this.save);
     this.refreshCosmetics();
-    this.ui.title(this.save.muted, this.save.best, this.save.bestStars, this.save.history || []);
+    this.daily = loadDailyMeta();
+    this.ui.title(this.save.muted, this.save.best, this.save.bestStars, this.save.history || [], this.daily);
     this.syncChrome();
   }
 
@@ -954,6 +966,7 @@ export class Game {
     const fresh = newlyUnlocked(this.save);
     syncUnlocks(this.save);
     writeSave(this.save);
+    this.daily = recordDailyRun(score, served);
     this.refreshCosmetics();
     this.audio.stopBed();
     this.view = "over";
@@ -961,6 +974,12 @@ export class Game {
       window.setTimeout(() => {
         this.toast(`Loja da esquina: ${fresh[0]!.name} desbloqueado!`, 2200, "ok");
       }, 600);
+    }
+    const soft = softDailyTargets(this.daily);
+    if (score >= soft.scoreGoal || served >= soft.servedGoal) {
+      window.setTimeout(() => {
+        this.toast("Meta suave do dia alcançada. Bom expediente!", 1600, "ok");
+      }, 280);
     }
     this.ui.over(
       score,
@@ -971,6 +990,7 @@ export class Game {
       runStars,
       this.save.bestStars,
       this.save.history || [],
+      this.daily,
     );
     this.syncChrome();
   }
@@ -1050,7 +1070,8 @@ export class Game {
         writeSave(this.save);
         this.syncMuteButtons();
         if (this.view === "title") {
-          this.ui.title(muted, this.save.best, this.save.bestStars, this.save.history || []);
+          this.daily = loadDailyMeta();
+          this.ui.title(muted, this.save.best, this.save.bestStars, this.save.history || [], this.daily);
         }
         if (this.view === "paused") this.ui.pause(muted, this.pauseReason);
         // Só confirma com click ao ATIVAR o som (quando muta, master já está 0).
@@ -1201,6 +1222,42 @@ export class Game {
       hand.hidden = false;
       handName.textContent = this.run.holding ? PRODUCT_BY_ID[this.run.holding].short : "—";
     }
+    this.syncOrderHud();
+    this.syncDailyHud();
+  }
+
+  /** Fila/pedido legível no celular: chips com nome + itens do pedido. */
+  private syncOrderHud(): void {
+    const el = document.getElementById("hud-orders");
+    if (!el || !this.run) return;
+    const waiting = this.run.customers.filter((c) => c.mood === "wait" || c.mood === "enter");
+    if (!waiting.length) {
+      el.hidden = true;
+      el.textContent = "";
+      return;
+    }
+    const bits = waiting
+      .slice(0, 4)
+      .map((c) => {
+        const arch = ARCHETYPES.find((a) => a.id === c.arch) ?? ARCHETYPES[0]!;
+        const items = c.order.map((id) => PRODUCT_BY_ID[id].short).join("+") || "—";
+        const urg = c.patience / Math.max(0.001, c.patienceMax) < 0.35 ? "!" : "";
+        return `${urg}${arch.name}: ${items}`;
+      })
+      .join(" · ");
+    el.hidden = false;
+    el.textContent = bits;
+  }
+
+  private syncDailyHud(): void {
+    const el = document.getElementById("hud-daily");
+    if (!el || !this.run) return;
+    const soft = softDailyTargets(this.daily);
+    const scoreOk = this.run.score >= soft.scoreGoal;
+    const servedOk = this.run.served >= soft.servedGoal;
+    el.hidden = false;
+    el.classList.toggle("daily-hit", scoreOk || servedOk);
+    el.textContent = `Meta ${this.run.score}/${soft.scoreGoal} · ${this.run.served}/${soft.servedGoal} cli`;
   }
 
   private flashCombo(): void {
@@ -1303,19 +1360,40 @@ export class Game {
   }
 
   /** Flash/pop de acerto ou liquidação — respeita prefers-reduced-motion. */
-  private flashJuice(kind: "serve" | "sale"): void {
+  private flashJuice(kind: "serve" | "sale" | "combo"): void {
     if (!this.juiceEl || prefersReducedMotion()) return;
-    this.juiceEl.classList.remove("juice-serve", "juice-sale");
+    this.juiceEl.classList.remove("juice-serve", "juice-sale", "juice-combo");
     this.juiceEl.hidden = true;
     void this.juiceEl.offsetWidth;
-    this.juiceEl.classList.add(kind === "sale" ? "juice-sale" : "juice-serve");
+    const cls = kind === "sale" ? "juice-sale" : kind === "combo" ? "juice-combo" : "juice-serve";
+    this.juiceEl.classList.add(cls);
     this.juiceEl.hidden = false;
+    const ms = kind === "sale" ? 420 : kind === "combo" ? 360 : 280;
     window.setTimeout(() => {
       if (this.juiceEl) {
         this.juiceEl.hidden = true;
-        this.juiceEl.classList.remove("juice-serve", "juice-sale");
+        this.juiceEl.classList.remove("juice-serve", "juice-sale", "juice-combo");
       }
-    }, kind === "sale" ? 420 : 280);
+    }, ms);
+  }
+
+  /** Pop do caixa na entrega — reforço visual do ding/cash. */
+  private popRegister(score: number, combo: number): void {
+    if (!this.registerPopEl || prefersReducedMotion()) return;
+    const label = combo >= 3 ? `CAIXA ×${combo} +${score}` : `CAIXA +${score}`;
+    this.registerPopEl.textContent = label;
+    this.registerPopEl.classList.remove("register-pop-go", "register-pop-hot");
+    this.registerPopEl.hidden = true;
+    void this.registerPopEl.offsetWidth;
+    this.registerPopEl.classList.add("register-pop-go");
+    if (combo >= 3) this.registerPopEl.classList.add("register-pop-hot");
+    this.registerPopEl.hidden = false;
+    window.setTimeout(() => {
+      if (this.registerPopEl) {
+        this.registerPopEl.hidden = true;
+        this.registerPopEl.classList.remove("register-pop-go", "register-pop-hot");
+      }
+    }, combo >= 3 ? 520 : 380);
   }
 
   /** Flash curto no erro (sem perder vida) — feedback visual imediato. */
