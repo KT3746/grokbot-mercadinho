@@ -8,6 +8,7 @@ import {
   type EquippedCosmetics,
 } from "../data/cosmetics";
 import type { RunRecord, SaveData, TurnGoal } from "../types";
+import { dailyMetaLines, type DailyMeta } from "../dailyMeta";
 import type { TurnSummary } from "../game/sim";
 
 export type UiAction =
@@ -97,9 +98,11 @@ export class Screens {
     this.root.innerHTML = html;
   }
 
-  title(muted: boolean, best: number, bestStars = 0, history: RunRecord[] = []): void {
+  title(muted: boolean, best: number, bestStars = 0, history: RunRecord[] = [], daily?: DailyMeta): void {
     const starsLine =
       bestStars > 0 ? `<p class="best">Melhor estrelas: <b>${"★".repeat(Math.min(3, bestStars))}${bestStars > 3 ? ` (${bestStars})` : ""}</b></p>` : "";
+    const d = dailyMetaLines(daily ?? { date: "", bestScore: 0, bestServed: 0 });
+    const dailyBlock = `<div class="daily-meta" role="status"><p class="daily-today">${d.today}</p><p class="daily-soft">${d.soft}</p></div>`;
     this.set(`
       <section class="screen title-screen">
         <div class="screen-body">
@@ -110,6 +113,7 @@ export class Screens {
               <p class="lede">Fila na porta. Produto certo na mão. Entrega antes da paciência estourar.</p>
               ${best > 0 ? `<p class="best">Recorde local: <b>${best}</b></p>` : ""}
               ${starsLine}
+              ${dailyBlock}
             </div>
             <button type="button" class="icon-btn mute-btn" data-act="mute" aria-label="${muted ? "Ativar som" : "Mudo"}">${muted ? "Som off" : "Som"}</button>
           </div>
@@ -297,8 +301,11 @@ export class Screens {
     runStars: number,
     bestStars: number,
     history: RunRecord[] = [],
+    daily?: DailyMeta,
   ): void {
     const starGlyph = runStars > 0 ? `<p><b>Estrelas:</b> ${"★".repeat(Math.min(runStars, 12))}${runStars > 12 ? ` (${runStars})` : ""}</p>` : "";
+    const d = dailyMetaLines(daily ?? { date: "", bestScore: 0, bestServed: 0 });
+    const dailyBlock = `<div class="daily-meta over-daily" role="status"><p class="daily-today">${d.today}</p><p class="daily-soft">${d.soft}</p></div>`;
     this.set(`
       <section class="screen solid over-screen">
         <div class="screen-body">
@@ -312,6 +319,7 @@ export class Screens {
             <p><b>Recorde:</b> ${best}</p>
             ${bestStars > 0 ? `<p><b>Melhor estrelas:</b> ${bestStars}</p>` : ""}
           </div>
+          ${dailyBlock}
           ${this.diaryHtml(history)}
         </div>
         <div class="screen-foot col">

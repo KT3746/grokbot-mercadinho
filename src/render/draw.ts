@@ -22,7 +22,7 @@ const DEFAULT_PALETTE: CosmeticPalette = {
   signId: "sign-classic",
   shelfAccent: "#24362c",
   shelfDeep: "#16241c",
-  shelfStroke: "rgba(227, 178, 60, 0.22)",
+  shelfStroke: "rgba(227, 178, 60, 0.42)",
   badge: "#e3b23c",
   badgeSoft: "rgba(227,178,60,0.35)",
   signFill: "#2a2218",
@@ -171,9 +171,14 @@ function paintFloor(ctx: CanvasRenderingContext2D, layout: PlayLayout): void {
 }
 
 function paintQueueZone(ctx: CanvasRenderingContext2D, layout: PlayLayout): void {
-  ctx.fillStyle = "rgba(0, 0, 0, 0.28)";
+  // Wave2: fila mais legível no mobile — fundo + borda dourada suave.
+  ctx.fillStyle = "rgba(8, 6, 4, 0.42)";
   roundRect(ctx, layout.queue.x, layout.queue.y, layout.queue.w, layout.queue.h, 18);
   ctx.fill();
+  ctx.strokeStyle = "rgba(227, 178, 60, 0.38)";
+  ctx.lineWidth = 2;
+  roundRect(ctx, layout.queue.x + 0.5, layout.queue.y + 0.5, layout.queue.w - 1, layout.queue.h - 1, 17);
+  ctx.stroke();
 }
 
 
@@ -197,8 +202,12 @@ function paintShelves(
     roundRect(ctx, s.x, s.y, s.w, s.h, 13);
     ctx.fill();
     ctx.strokeStyle = cos.shelfStroke;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.5;
     roundRect(ctx, s.x + 1, s.y + 1, s.w - 2, s.h - 2, 12);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(247, 236, 212, 0.14)";
+    ctx.lineWidth = 1;
+    roundRect(ctx, s.x + 4, s.y + 4, s.w - 8, s.h - 8, 10);
     ctx.stroke();
   }
   const cells = applyShelfOrder(layout.cells, run.shelfOrder.length === layout.cells.length ? run.shelfOrder : layout.cells.map((c) => c.id));
@@ -211,18 +220,19 @@ function paintShelves(
         cellGrad.addColorStop(0, "rgba(10, 10, 10, 0.72)");
         cellGrad.addColorStop(1, "rgba(6, 6, 6, 0.8)");
       } else {
-        cellGrad.addColorStop(0, "rgba(48, 38, 28, 0.98)");
-        cellGrad.addColorStop(1, "rgba(28, 22, 16, 0.98)");
+        // Wave2: prateleira com mais contraste vs. fundo escuro.
+        cellGrad.addColorStop(0, "rgba(62, 48, 34, 1)");
+        cellGrad.addColorStop(1, "rgba(34, 26, 18, 1)");
       }
       ctx.fillStyle = cellGrad;
       roundRect(ctx, cell.rect.x, cell.rect.y, cell.rect.w, cell.rect.h, 12);
       ctx.fill();
-      ctx.strokeStyle = "rgba(227, 178, 60, 0.34)";
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = blocked ? "rgba(100, 80, 60, 0.35)" : "rgba(247, 220, 140, 0.55)";
+      ctx.lineWidth = 2.4;
       roundRect(ctx, cell.rect.x, cell.rect.y, cell.rect.w, cell.rect.h, 12);
       ctx.stroke();
-      ctx.strokeStyle = "rgba(247, 236, 212, 0.08)";
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(247, 236, 212, 0.16)";
+      ctx.lineWidth = 1.2;
       roundRect(ctx, cell.rect.x + 2, cell.rect.y + 2, cell.rect.w - 4, cell.rect.h - 4, 10);
       ctx.stroke();
     } else {
@@ -479,9 +489,14 @@ function drawCustomer(
     urg > 0.55 ? "rgba(76, 175, 90, 0.18)" : urg > 0.32 ? "rgba(227, 178, 60, 0.22)" : "rgba(224, 82, 40, 0.32)";
   const urgPulse = prefersReducedMotion() ? 0 : (urg < 0.2 ? Math.sin(t * 12) * 0.85 : urg < 0.32 ? Math.sin(t * 8) * 0.35 : 0);
   const urgWidth = urg > 0.55 ? 2.5 : urg > 0.32 ? 3.2 : 3.9 + urgPulse;
-  ctx.fillStyle = c.mood === "rage" ? "#3a241c" : "#2a2218";
+  ctx.fillStyle = c.mood === "rage" ? "#3a241c" : "#32281c";
   roundRect(ctx, bx, by, bubbleW, bubbleH, 10);
   ctx.fill();
+  // Etiqueta PEDIDO — HUD de fila mais claro no toque/celular.
+  ctx.fillStyle = "rgba(227, 178, 60, 0.92)";
+  ctx.font = "800 9px Nunito, sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText("PEDIDO", bx + 8, by + 12);
   ctx.save();
   ctx.shadowColor = urgGlow;
   ctx.shadowBlur = urg > 0.55 ? 0 : urg > 0.32 ? 6 : 12;
@@ -494,11 +509,14 @@ function drawCustomer(
   const icon = Math.min(44, (bubbleW - 8) / Math.max(1, need.length) - 4);
   need.forEach((id, i) => {
     const ix = bx + bubbleW / 2 + (i - (need.length - 1) / 2) * (icon + 10);
-    drawProduct(ctx, id, ix, by + bubbleH * 0.36, icon * 0.92, t, false);
+    drawProduct(ctx, id, ix, by + bubbleH * 0.42, icon * 0.88, t, false);
     ctx.fillStyle = "#f7ecd4";
-    ctx.font = `800 ${Math.max(10, Math.min(13, bubbleW * 0.14))}px Nunito, sans-serif`;
+    ctx.font = `800 ${Math.max(11, Math.min(14, bubbleW * 0.15))}px Nunito, sans-serif`;
     ctx.textAlign = "center";
-    ctx.fillText(PRODUCT_BY_ID[id].short, ix, by + bubbleH - 7, icon + 12);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(10,8,6,0.75)";
+    ctx.strokeText(PRODUCT_BY_ID[id].short, ix, by + bubbleH - 6, icon + 12);
+    ctx.fillText(PRODUCT_BY_ID[id].short, ix, by + bubbleH - 6, icon + 12);
   });
   if (need.length === 0) {
     ctx.fillStyle = "#7dff9a";
