@@ -27,6 +27,8 @@ import { computeLayout, contains, type PlayLayout } from "../render/layout";
 import { drawProduct, drawShop, hitCustomer, hitProduct, type PointerGhost } from "../render/draw";
 import { Scene3D } from "../render/scene3d";
 import type { ProductId, SaveData, View } from "../types";
+
+const FIRST_TIP_KEY = "mercadinho-first-tip-v1";
 import { Screens, type UiAction } from "../ui/screens";
 
 export class Game {
@@ -48,6 +50,11 @@ export class Game {
   private bannerEl: HTMLElement;
   private hud: HTMLElement;
   private hurtEl: HTMLElement | null = null;
+  private juiceEl: HTMLElement | null = null;
+  private tipEl: HTMLElement | null = null;
+  private tipActive = false;
+  private tipDeadline = 0;
+  private pauseReason: "manual" | "visibility" = "manual";
   private dragging: ProductId | null = null;
   /** 1 | 2 | 3 — acelerador do expediente */
   private speedScale: 1 | 2 | 3 = 1;
@@ -87,6 +94,8 @@ export class Game {
     this.bannerEl = document.getElementById("banner")!;
     this.hud = document.getElementById("hud")!;
     this.hurtEl = document.getElementById("hurt");
+    this.juiceEl = document.getElementById("juice");
+    this.tipEl = document.getElementById("first-tip");
     const shop = document.getElementById("hud-shop");
     if (shop) shop.textContent = GAME_TITLE;
     this.bind();
@@ -195,6 +204,7 @@ export class Game {
     if (this.view !== "play" || this.run?.tutorial || this.run?.awaitingSummary) return;
     this.clearDrag();
     this.view = "paused";
+    this.pauseReason = "visibility";
     this.audio.setPressure(0);
     this.audio.hushBed();
     try {
@@ -202,7 +212,7 @@ export class Game {
     } catch {
       /* ok */
     }
-    this.ui.pause(this.save.muted);
+    this.ui.pause(this.save.muted, "visibility");
     this.syncChrome();
   }
 
@@ -297,6 +307,7 @@ export class Game {
       const ev = tryPickup(this.run, prod);
       if (ev) {
         this.audio.pickup();
+        this.dismissFirstTip();
         this.dragging = prod;
         this.pointerId = e.pointerId;
         this.ghost = { x: p.x, y: p.y, id: prod };
@@ -411,6 +422,7 @@ export class Game {
       if (third) {
         const ev = tryPickup(this.run, third);
         if (ev) this.audio.pickup();
+        this.dismissFirstTip();
       }
       return;
     }
@@ -477,6 +489,7 @@ export class Game {
     if (idx != null && ids[idx]) {
       const ev = tryPickup(this.run, ids[idx]!);
       if (ev) this.audio.pickup();
+      this.dismissFirstTip();
       return;
     }
     const waiting = this.waitingCustomers();
@@ -523,6 +536,8 @@ export class Game {
         }
         this.popScore(ev.score, ev.combo, ev.customerId, at);
         this.flashCombo();
+        this.flashJuice("serve");
+        this.dismissFirstTip();
         if (ev.combo === 3 || ev.combo === 5 || ev.combo === 8) {
           this.toast(`Combo ×${ev.combo}!`, 900, "ok");
         }
@@ -565,6 +580,7 @@ export class Game {
       case "chaos":
         this.audio.chaos();
         this.toast(toastFor(ev.kind), 1200, "warn");
+        if (ev.kind === "liquidacao") this.flashJuice("sale");
         break;
       case "over":
         this.audio.over();
@@ -608,6 +624,7 @@ export class Game {
     if ((this.view === "play" || this.view === "summary") && this.run) {
       this.ensureLayout();
       if (this.view === "play" && !this.run.awaitingSummary) {
+        if (this.tipActive && performance.now() >= this.tipDeadline) this.dismissFirstTip();
         const beforeTurno = this.run.turno;
         const events = tick(this.run, dt);
         if (this.run.turno !== beforeTurno) this.ensureLayout(true);
@@ -880,15 +897,7 @@ export class Game {
     this.syncChrome();
     this.resize();
     document.getElementById("btn-speed")?.blur();
-    if (this.save.plays <= 1) {
-      this.toast(
-        wantsTouchCopy()
-          ? "Toque no produto, depois no cliente. Ou arraste."
-          : "Clique no produto, depois no cliente. 1–8 pega · Espaço entrega.",
-        2200,
-        "info",
-      );
-    } else {
+    if (!this.maybeShowFirstTip()) {
       this.toast("Caixa aberto. Bom expediente!", 1100, "ok");
     }
     this.audio.shift();
@@ -902,6 +911,7 @@ export class Game {
     if (this.pauseUiBlocked()) return;
     this.clearDrag();
     this.view = "paused";
+    this.pauseReason = "manual";
     this.audio.setPressure(0);
     this.audio.hushBed();
     try {
@@ -909,7 +919,7 @@ export class Game {
     } catch {
       /* ok */
     }
-    this.ui.pause(this.save.muted);
+    this.ui.pause(this.save.muted, "manual");
     this.syncChrome();
   }
 
@@ -1042,7 +1052,7 @@ export class Game {
         if (this.view === "title") {
           this.ui.title(muted, this.save.best, this.save.bestStars, this.save.history || []);
         }
-        if (this.view === "paused") this.ui.pause(muted);
+        if (this.view === "paused") this.ui.pause(muted, this.pauseReason);
         // Só confirma com click ao ATIVAR o som (quando muta, master já está 0).
         if (!muted) this.audio.click();
         break;
@@ -1099,6 +1109,8 @@ export class Game {
       this.toastEl.hidden = true;
       this.toastEl.replaceChildren();
       if (this.hurtEl) this.hurtEl.hidden = true;
+      if (this.juiceEl) this.juiceEl.hidden = true;
+      this.hideFirstTipUi();
     }
     this.syncMuteButtons();
   }
@@ -1254,6 +1266,56 @@ export class Game {
       el.remove();
       if (!this.toastEl.childElementCount) this.toastEl.hidden = true;
     }, ms);
+  }
+
+
+  /** Dica PT-BR do 1º minuto: pegar produto / atender; some na 1ª ação; localStorage 1×. */
+  private maybeShowFirstTip(): boolean {
+    try {
+      if (localStorage.getItem(FIRST_TIP_KEY) === "1") return false;
+    } catch {
+      /* private mode — ainda mostra nesta sessão */
+    }
+    if (!this.tipEl) return false;
+    const touch = wantsTouchCopy();
+    this.tipEl.textContent = touch
+      ? "1º minuto: toque num produto pra pegar · toque no cliente pra atender."
+      : "1º minuto: clique num produto (ou 1–8) · clique no cliente (ou Espaço) pra atender.";
+    this.tipEl.hidden = false;
+    this.tipActive = true;
+    this.tipDeadline = performance.now() + 60_000;
+    return true;
+  }
+
+  private hideFirstTipUi(): void {
+    if (this.tipEl) this.tipEl.hidden = true;
+    this.tipActive = false;
+  }
+
+  private dismissFirstTip(): void {
+    if (!this.tipActive) return;
+    this.hideFirstTipUi();
+    try {
+      localStorage.setItem(FIRST_TIP_KEY, "1");
+    } catch {
+      /* private mode */
+    }
+  }
+
+  /** Flash/pop de acerto ou liquidação — respeita prefers-reduced-motion. */
+  private flashJuice(kind: "serve" | "sale"): void {
+    if (!this.juiceEl || prefersReducedMotion()) return;
+    this.juiceEl.classList.remove("juice-serve", "juice-sale");
+    this.juiceEl.hidden = true;
+    void this.juiceEl.offsetWidth;
+    this.juiceEl.classList.add(kind === "sale" ? "juice-sale" : "juice-serve");
+    this.juiceEl.hidden = false;
+    window.setTimeout(() => {
+      if (this.juiceEl) {
+        this.juiceEl.hidden = true;
+        this.juiceEl.classList.remove("juice-serve", "juice-sale");
+      }
+    }, kind === "sale" ? 420 : 280);
   }
 
   /** Flash curto no erro (sem perder vida) — feedback visual imediato. */
