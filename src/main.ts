@@ -7,3 +7,4 @@ if (!canvas || !ui) throw new Error("MERCADINHO: DOM incompleto");
 
 const game = new Game(canvas, ui);
 game.start();
+if (import.meta.env.DEV) (window as unknown as { __MERC?: Game }).__MERC = game;

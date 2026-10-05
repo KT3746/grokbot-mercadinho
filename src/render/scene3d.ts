@@ -609,7 +609,12 @@ export class Scene3D {
       const span = edge ? Math.hypot(edge.x - hx, edge.z - hz) * 1.65 : 0.8;
       mesh.visible = true;
       mesh.position.set(hx, y, hz);
-      mesh.scale.setScalar(Math.max(0.5, Math.min(1.05, span)));
+      // Wave3: produto maior na célula (antes travava em 1.05 e sumia no celular).
+      const hold = run.holding === cell.id;
+      const pop = hold && !this.fx.reduceMotion ? 1.12 + Math.sin(run.t * 9) * 0.04 : 1;
+      // Célula baixa (tela pequena / grade densa): reduz pra não vazar da prateleira.
+      const fitH = Math.min(1, cell.rect.h / Math.max(1, cell.rect.w * 1.25));
+      mesh.scale.setScalar(Math.max(0.6, Math.min(2.5, span * 2.2 * fitH)) * pop);
       mesh.rotation.y = this.fx.reduceMotion ? 0 : Math.sin(run.t * 1.2 + cell.rect.x * 0.02) * 0.08;
       const blocked =
         catBlock &&
@@ -618,7 +623,6 @@ export class Scene3D {
         cell.rect.y - 18 <= catBlock.y &&
         catBlock.y <= cell.rect.y + cell.rect.h + 18;
       mesh.visible = mesh.visible && !blocked;
-      const hold = run.holding === cell.id;
       mesh.traverse((obj: THREE.Object3D) => {
         const m = obj as THREE.Mesh;
         const mat = m.material as THREE.MeshLambertMaterial | undefined;
