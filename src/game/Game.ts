@@ -30,7 +30,7 @@ import {
   type DailyMeta,
 } from "../dailyMeta";
 import { computeLayout, contains, type PlayLayout } from "../render/layout";
-import { drawProduct, drawShop, hitCustomer, hitProduct, type PointerGhost } from "../render/draw";
+import { drawProduct, drawShop, hitCustomer, hitProduct, type PointerGhost, type ShopAssist } from "../render/draw";
 import { Scene3D } from "../render/scene3d";
 import type { ProductId, SaveData, View } from "../types";
 
@@ -79,6 +79,12 @@ export class Game {
   private hitstop = 0;
   private lastDt = 0.016;
   private tutorialStep = 0;
+  /** Wave3: cliente sob o dedo no arrasto. */
+  private dragHover: number | null = null;
+  /** Wave3: produto voando da prateleira até o cliente (entrega por toque). */
+  private flyers: { id: ProductId; x0: number; y0: number; x1: number; y1: number; t0: number; dur: number }[] = [];
+  private lastHolding: ProductId | null = null;
+  private hudObs: ResizeObserver | null = null;
   private cosPalette: CosmeticPalette = paletteFor({
     sign: "sign-classic",
     shelf: "shelf-verde",
@@ -121,6 +127,7 @@ export class Game {
     window.addEventListener("pointerdown", unlock);
     window.addEventListener("keydown", unlock);
     this.resize();
+    this.watchHud();
     console.info(`MERCADINHO build ${BUILD_ID}`);
   }
 
@@ -153,6 +160,21 @@ export class Game {
       }
     };
     requestAnimationFrame(loop);
+  }
+
+  /** Wave3: se o HUD mudar de altura no meio do turno, a fila desce junto (nada fica coberto). */
+  private watchHud(): void {
+    if (typeof ResizeObserver === "undefined") return;
+    let lastH = 0;
+    this.hudObs = new ResizeObserver(() => {
+      if (this.hud.hidden) return;
+      const h = Math.ceil(this.hud.getBoundingClientRect().height);
+      if (h <= 40 || Math.abs(h - lastH) < 3) return;
+      lastH = h;
+      const band = h + 8;
+      if (band !== this.hudBand) this.remeasureHud(false);
+    });
+    this.hudObs.observe(this.hud);
   }
 
   /** Após overlays: sobe o canvas brevemente e evita auto-pause de aba. */
@@ -354,6 +376,13 @@ export class Game {
       this.ghost.x = p.x;
       this.ghost.y = p.y;
     }
+    if (this.run && this.layout) {
+      const hov = hitCustomer(this.layout, this.run, p.x, p.y);
+      if (hov !== this.dragHover) {
+        this.dragHover = hov;
+        if (hov != null) this.buzz(6);
+      }
+    }
   }
 
   private onUp(e: PointerEvent): void {
@@ -370,6 +399,7 @@ export class Game {
   }
 
   private clearDrag(): void {
+    this.dragHover = null;
     this.dragging = null;
     this.pointerId = null;
     this.ghost = null;
@@ -378,12 +408,86 @@ export class Game {
 
   private deliver(customerId: number, at: { x: number; y: number }): void {
     if (!this.run || this.run.tutorial || this.run.awaitingSummary) return;
+    const held = this.run.holding;
+    const fromDrag = this.dragging != null;
     const ev = tryDeliver(this.run, customerId, {
       x: at.x / Math.max(1, this.cssW),
       y: at.y / Math.max(1, this.cssH),
     });
     if (!ev) return;
+    if (held && !fromDrag) this.launchFlyer(held, customerId);
     this.applyEvent(ev, at);
+  }
+
+  /** Wave3: entrega por toque — o produto voa da prateleira até o balão do cliente. */
+  private launchFlyer(id: ProductId, customerId: number): void {
+    if (!this.run || !this.layout || prefersReducedMotion()) return;
+    const cells = this.layout.cells;
+    const order = this.run.shelfOrder.length === cells.length ? this.run.shelfOrder : cells.map((c) => c.id);
+    const idx = order.indexOf(id);
+    const cell = idx >= 0 ? cells[idx] : undefined;
+    const c = this.run.customers.find((x) => x.id === customerId);
+    const slot = c ? this.layout.slots[c.slot] : undefined;
+    if (!cell || !slot) return;
+    this.flyers.push({
+      id,
+      x0: cell.rect.x + cell.rect.w / 2,
+      y0: cell.rect.y + cell.rect.h * 0.4,
+      x1: slot.x + slot.w / 2,
+      y1: slot.y + Math.min(slot.h * 0.45, 70),
+      t0: performance.now(),
+      dur: 320,
+    });
+    if (this.flyers.length > 4) this.flyers.shift();
+  }
+
+  private paintFlyers(): void {
+    if (!this.flyers.length || !this.layout) return;
+    const now = performance.now();
+    const ctx = this.ctx;
+    const size = Math.min(56, this.layout.w * 0.12);
+    this.flyers = this.flyers.filter((f) => now - f.t0 < f.dur + 180);
+    for (const f of this.flyers) {
+      const k = Math.min(1, (now - f.t0) / f.dur);
+      if (k < 1) {
+        const e = 1 - (1 - k) * (1 - k);
+        const x = f.x0 + (f.x1 - f.x0) * e;
+        const arc = Math.sin(k * Math.PI) * Math.min(90, Math.abs(f.y1 - f.y0) * 0.35 + 30);
+        const y = f.y0 + (f.y1 - f.y0) * e - arc;
+        const s = size * (1 + Math.sin(k * Math.PI) * 0.35);
+        ctx.save();
+        ctx.globalAlpha = 0.35;
+        drawProduct(ctx, f.id, f.x0 + (f.x1 - f.x0) * Math.max(0, e - 0.12), f.y0 + (f.y1 - f.y0) * Math.max(0, e - 0.12) - arc * 0.9, s * 0.8, 0, false);
+        ctx.restore();
+        drawProduct(ctx, f.id, x, y, s, 0, true);
+      } else {
+        // Anel de chegada.
+        const r = (now - f.t0 - f.dur) / 180;
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, 1 - r);
+        ctx.strokeStyle = "#7dff9a";
+        ctx.lineWidth = 4 * (1 - r) + 1;
+        ctx.beginPath();
+        ctx.arc(f.x1, f.y1, size * (0.4 + r * 0.9), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+  }
+
+  /** Wave3: guia do turno 1 (prateleira certa pulsa) + alvo verde quando a mão tem o item pedido. */
+  private assist(): ShopAssist {
+    const run = this.run;
+    if (!run || this.view !== "play") return {};
+    const out: ShopAssist = { hover: this.dragging ? this.dragHover : null };
+    if (run.turno !== 1) return out;
+    const waiting = run.customers.filter((c) => (c.mood === "wait" || c.mood === "enter") && c.order.length);
+    if (!run.holding) {
+      out.guide = Array.from(new Set(waiting.map((c) => c.order[0]!)));
+    } else {
+      out.targets = waiting.filter((c) => c.order[0] === run.holding).map((c) => c.id);
+    }
+    return out;
   }
 
   private drop(): void {
@@ -691,8 +795,10 @@ export class Game {
         this.selected,
         this.cosPalette,
         overlay,
+        this.assist(),
       );
       ctx.restore();
+      this.paintFlyers();
       return;
     }
     if (overlay) {
@@ -852,6 +958,8 @@ export class Game {
   private play(): void {
     this.run = createRun();
     this.selected = null;
+    this.flyers = [];
+    this.lastHolding = null;
     this.speedScale = 1;
     this.hitstop = 0;
     this.syncSpeedBtn();
@@ -1220,7 +1328,18 @@ export class Game {
     const handName = document.getElementById("hud-hand-name");
     if (hand && handName) {
       hand.hidden = false;
-      handName.textContent = this.run.holding ? PRODUCT_BY_ID[this.run.holding].short : "—";
+      const holding = this.run.holding;
+      handName.textContent = holding ? PRODUCT_BY_ID[holding].short : "—";
+      hand.classList.toggle("has-item", !!holding);
+      hand.classList.toggle("is-empty", !holding);
+      if (holding !== this.lastHolding) {
+        if (holding && !prefersReducedMotion()) {
+          hand.classList.remove("hand-pop");
+          void hand.offsetWidth;
+          hand.classList.add("hand-pop");
+        }
+        this.lastHolding = holding;
+      }
     }
     this.syncOrderHud();
     this.syncDailyHud();
@@ -1232,10 +1351,13 @@ export class Game {
     if (!el || !this.run) return;
     const waiting = this.run.customers.filter((c) => c.mood === "wait" || c.mood === "enter");
     if (!waiting.length) {
-      el.hidden = true;
-      el.textContent = "";
+      // Mantém a altura do HUD estável (sem pulo da fila/prateleira).
+      el.hidden = false;
+      el.classList.add("is-idle");
+      el.textContent = "Fila: esperando o próximo cliente…";
       return;
     }
+    el.classList.remove("is-idle");
     const bits = waiting
       .slice(0, 4)
       .map((c) => {

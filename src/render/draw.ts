@@ -7,6 +7,16 @@ import { applyShelfOrder, contains, type PlayLayout, type Rect } from "./layout"
 
 export type PointerGhost = { x: number; y: number; id: ProductId } | null;
 
+/** Wave3: dicas visuais de toque (guia do turno 1, alvo do arrasto). */
+export type ShopAssist = {
+  /** Produtos que a fila quer agora (pulsam na prateleira). */
+  guide?: ProductId[];
+  /** Clientes que querem o item na mão (borda verde "entregue aqui"). */
+  targets?: number[];
+  /** Cliente sob o dedo durante o arrasto. */
+  hover?: number | null;
+};
+
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
   const rr = Math.min(r, w / 2, h / 2);
   ctx.beginPath();
@@ -39,6 +49,7 @@ export function drawShop(
   selectedId: number | null,
   cosmetics: CosmeticPalette = DEFAULT_PALETTE,
   overlay = false,
+  assist: ShopAssist = {},
 ): void {
   const { w, h } = layout;
   ctx.clearRect(0, 0, w, h);
@@ -57,6 +68,7 @@ export function drawShop(
   for (const c of run.customers) drawCustomer(ctx, c, layout, t, overlay);
   paintShelves(ctx, layout, run, t, cosmetics, overlay);
   if (!overlay && run.chaos?.kind === "gato") drawCat(ctx, layout, run, t);
+  paintAssist(ctx, layout, run, t, assist);
   drawParticles(ctx, run.particles, layout);
   // Urgência: vinheta vermelha quando alguém está no limite.
   let critical = 0;
@@ -107,6 +119,101 @@ export function drawShop(
     }
   }
   ctx.restore();
+}
+
+function paintAssist(
+  ctx: CanvasRenderingContext2D,
+  layout: PlayLayout,
+  run: Run,
+  t: number,
+  assist: ShopAssist,
+): void {
+  const reduce = prefersReducedMotion();
+  const pulse = reduce ? 0.7 : 0.5 + 0.5 * Math.sin(t * 6);
+  const guide = assist.guide ?? [];
+  if (guide.length) {
+    const cells = applyShelfOrder(
+      layout.cells,
+      run.shelfOrder.length === layout.cells.length ? run.shelfOrder : layout.cells.map((c) => c.id),
+    );
+    for (const cell of cells) {
+      if (!guide.includes(cell.id) || run.holding === cell.id) continue;
+      const r = cell.rect;
+      const grow = reduce ? 0 : pulse * 3;
+      ctx.save();
+      ctx.shadowColor = "rgba(125, 255, 154, 0.75)";
+      ctx.shadowBlur = 10 + pulse * 10;
+      ctx.strokeStyle = `rgba(125, 255, 154, ${(0.55 + pulse * 0.45).toFixed(3)})`;
+      ctx.lineWidth = 3.5;
+      roundRect(ctx, r.x - grow, r.y - grow, r.w + grow * 2, r.h + grow * 2, 13);
+      ctx.stroke();
+      ctx.restore();
+      // Etiqueta "PEDIDO" no topo da célula.
+      const tag = "PEDIDO";
+      ctx.save();
+      ctx.font = "800 10px Nunito, sans-serif";
+      const tw = ctx.measureText(tag).width + 12;
+      const tx = r.x + r.w / 2 - tw / 2;
+      const ty = r.y + 6 - (reduce ? 0 : pulse * 2);
+      ctx.fillStyle = "rgba(24, 60, 36, 0.95)";
+      roundRect(ctx, tx, ty, tw, 16, 8);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(125, 255, 154, 0.9)";
+      ctx.lineWidth = 1.4;
+      roundRect(ctx, tx, ty, tw, 16, 8);
+      ctx.stroke();
+      ctx.fillStyle = "#d8f5e2";
+      ctx.textAlign = "center";
+      ctx.fillText(tag, r.x + r.w / 2, ty + 12);
+      ctx.restore();
+    }
+  }
+  const slotOf = (id: number): Rect | null => {
+    const c = run.customers.find((x) => x.id === id);
+    if (!c || (c.mood !== "wait" && c.mood !== "enter")) return null;
+    return layout.slots[c.slot] ?? null;
+  };
+  for (const id of assist.targets ?? []) {
+    const r = slotOf(id);
+    if (!r) continue;
+    ctx.save();
+    ctx.shadowColor = "rgba(125, 255, 154, 0.7)";
+    ctx.shadowBlur = 14;
+    ctx.strokeStyle = `rgba(125, 255, 154, ${(0.6 + pulse * 0.4).toFixed(3)})`;
+    ctx.lineWidth = 4;
+    ctx.setLineDash(reduce ? [] : [10, 7]);
+    ctx.lineDashOffset = reduce ? 0 : -t * 30;
+    roundRect(ctx, r.x - 4, r.y - 4, r.w + 8, r.h + 8, 17);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.shadowBlur = 0;
+    const label = "Entregue aqui";
+    ctx.font = "800 12px Nunito, sans-serif";
+    const lw = ctx.measureText(label).width + 16;
+    const lx = r.x + r.w / 2 - lw / 2;
+    const ly = r.y + r.h - 24;
+    ctx.fillStyle = "rgba(24, 60, 36, 0.95)";
+    roundRect(ctx, lx, ly, lw, 20, 10);
+    ctx.fill();
+    ctx.fillStyle = "#d8f5e2";
+    ctx.textAlign = "center";
+    ctx.fillText(label, r.x + r.w / 2, ly + 14.5);
+    ctx.restore();
+  }
+  if (assist.hover != null) {
+    const r = slotOf(assist.hover);
+    if (r) {
+      ctx.save();
+      ctx.fillStyle = "rgba(247, 236, 212, 0.08)";
+      roundRect(ctx, r.x - 2, r.y - 2, r.w + 4, r.h + 4, 16);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(247, 236, 212, 0.95)";
+      ctx.lineWidth = 3;
+      roundRect(ctx, r.x - 2, r.y - 2, r.w + 4, r.h + 4, 16);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
 }
 
 function paintWall(

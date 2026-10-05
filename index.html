@@ -55,14 +55,14 @@
                 <div id="hud-turno">Turno 1</div>
                 <div id="hud-lives" aria-label="Vidas">❤❤❤❤</div>
               </div>
-            </div>
-            <div id="hud-combo" class="combo-meter" hidden>
-              <div class="combo-flame" aria-hidden="true">🔥</div>
-              <div class="combo-stack">
-                <div class="combo-label">COMBO</div>
-                <div class="combo-value" id="hud-combo-val">×2</div>
+              <div id="hud-combo" class="combo-meter" hidden>
+                <div class="combo-flame" aria-hidden="true">🔥</div>
+                <div class="combo-stack">
+                  <div class="combo-label">COMBO</div>
+                  <div class="combo-value" id="hud-combo-val">×2</div>
+                </div>
+                <div class="combo-bar" aria-hidden="true"><div id="hud-combo-fill"></div></div>
               </div>
-              <div class="combo-bar" aria-hidden="true"><div id="hud-combo-fill"></div></div>
             </div>
             <div id="hud-goals" class="hud-goals" hidden></div>
             <div id="hud-orders" class="hud-orders" hidden aria-live="polite"></div>
@@ -72,10 +72,12 @@
             <button type="button" class="icon-btn" id="btn-speed" tabindex="-1" aria-label="Velocidade">1x</button>
             <button type="button" class="icon-btn" id="btn-pause" tabindex="-1" aria-label="Pausar">Pausa</button>
           </div>
-          <div class="hud-hand" id="hud-hand" hidden>
-            <div class="hud-label">Na mão</div>
-            <div id="hud-hand-name">—</div>
-            <button type="button" class="icon-btn" id="btn-drop" tabindex="-1" aria-label="Soltar item">Soltar</button>
+          <div class="hud-hand is-empty" id="hud-hand" hidden>
+            <div class="hand-text">
+              <div class="hud-label">Na mão</div>
+              <div id="hud-hand-name">—</div>
+            </div>
+            <button type="button" class="icon-btn" id="btn-drop" tabindex="-1" aria-label="Soltar item"><span class="drop-full">Soltar</span><span class="drop-short" aria-hidden="true">✕</span></button>
           </div>
         </div>
       </div>

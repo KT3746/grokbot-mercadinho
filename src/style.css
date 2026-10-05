@@ -1675,3 +1675,155 @@ body.tutor-lookalike #scene::after {
   }
 }
 
+
+/* —— Wave3: HUD compacto (Na mão ao lado), combo na linha do placar, fila sem pulo —— */
+.hud-hand .drop-short {
+  display: none;
+}
+.hud-score-line #hud-combo,
+.hud-score-line .combo-meter {
+  margin-top: 0;
+  align-self: center;
+}
+.hud-hand {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+.hud-hand.is-empty {
+  opacity: 0.72;
+}
+.hud-hand.is-empty #btn-drop {
+  opacity: 0.45;
+}
+.hud-hand.has-item {
+  border-color: rgba(227, 178, 60, 0.95);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35), 0 0 16px rgba(227, 178, 60, 0.35);
+}
+.hud-hand.hand-pop {
+  animation: hand-pop 0.22s ease-out;
+}
+@keyframes hand-pop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.07); }
+  100% { transform: scale(1); }
+}
+
+@media (max-width: 700px) {
+  .hud-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "left right"
+      "left hand";
+    align-items: start;
+    gap: 6px 8px;
+  }
+  .hud-cluster.left {
+    grid-area: left;
+    min-width: 0;
+  }
+  .hud-cluster.right {
+    grid-area: right;
+    justify-self: stretch;
+    justify-content: flex-end;
+  }
+  .hud-hand {
+    grid-area: hand;
+    flex: none;
+    width: auto;
+    max-width: none;
+    justify-self: stretch;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 4px 4px 9px;
+    text-align: left;
+  }
+  .hand-text {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .hud-hand .hud-label {
+    font-size: 9px;
+    line-height: 1.1;
+  }
+  #hud-hand-name {
+    font-size: 15px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hud-hand .icon-btn,
+  #btn-drop {
+    width: auto;
+    margin-top: 0;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 6px 10px;
+    flex: 0 0 auto;
+    font-size: 16px;
+  }
+  .hud-hand .drop-full {
+    display: none;
+  }
+  .hud-hand .drop-short {
+    display: inline;
+  }
+  /* Altura estável: pedidos numa linha só (a fila no canvas mostra o resto). */
+  .hud-orders {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hud-orders.is-idle {
+    color: var(--muted);
+    border-color: rgba(227, 178, 60, 0.2);
+  }
+  .hud-score-line {
+    gap: 8px;
+    flex-wrap: nowrap;
+  }
+  .hud-score-line #hud-combo,
+  .hud-score-line .combo-meter {
+    padding: 2px 6px 3px;
+    gap: 4px;
+    border-radius: 10px;
+  }
+  .hud-score-line .combo-stack {
+    min-width: 30px;
+  }
+  .hud-score-line .combo-flame {
+    font-size: 13px;
+  }
+  .hud-score-line .combo-bar {
+    min-width: 18px;
+    width: 18px;
+    flex: 0 0 18px;
+  }
+  .hud-score-line .combo-label {
+    font-size: 8px;
+    letter-spacing: 0.1em;
+  }
+  #hud-turno,
+  #hud-lives {
+    white-space: nowrap;
+  }
+}
+@media (max-width: 380px) {
+  .hud-score-line .combo-label,
+  .hud-score-line .combo-bar {
+    display: none;
+  }
+  .hud-score-line .combo-stack {
+    min-width: 0;
+  }
+  #hud-lives {
+    letter-spacing: 0;
+    font-size: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-hand.hand-pop {
+    animation: none;
+  }
+}
