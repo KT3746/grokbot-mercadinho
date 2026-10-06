@@ -1,7 +1,7 @@
 {
   "name": "grokbot-mercadinho",
   "private": true,
-  "version": "1.0.3",
+  "version": "1.0.4",
   "type": "module",
   "description": "MERCADINHO — atenda clientes numa lojinha antes deles pirarem",
   "scripts": {

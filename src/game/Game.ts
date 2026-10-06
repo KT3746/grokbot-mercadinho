@@ -1,5 +1,5 @@
 import { Sfx } from "../audio/sfx";
-import { BUILD_ID, COMBO_WINDOW, GAME_TITLE, HUD_H_LANDSCAPE, HUD_H_PORTRAIT, prefersReducedMotion, wantsTouchCopy } from "../config";
+import { BUILD_ID, COMBO_WINDOW, GAME_TITLE, HUD_H_LANDSCAPE, HUD_H_PORTRAIT, TURNO_SECS, prefersReducedMotion, wantsTouchCopy } from "../config";
 import { ARCHETYPES, PRODUCT_BY_ID, TOASTS, productsUnlocked } from "../data/catalog";
 import {
   applyShift,
@@ -85,6 +85,20 @@ export class Game {
   private flyers: { id: ProductId; x0: number; y0: number; x1: number; y1: number; t0: number; dur: number }[] = [];
   private lastHolding: ProductId | null = null;
   private hudObs: ResizeObserver | null = null;
+  /** Wave4: contagem 3·2·1 antes do caixa abrir (segundos de relógio real). */
+  private countdown = 0;
+  private countdownGo = "Abriu!";
+  private countdownShown = "";
+  private countdownEl: HTMLElement | null = null;
+  private countdownHideTimer = 0;
+  /** Wave4: clientes que já dispararam o alarme de "vai embora". */
+  private warned = new Set<number>();
+  /** Wave4: relógio do turno — avisos dos últimos segundos. */
+  private clockWarned = false;
+  private lastClockSec = -1;
+  /** Wave4: ícone do item na mão. */
+  private handIcon: HTMLCanvasElement | null = null;
+  private handIconId: ProductId | null | undefined = undefined;
   private cosPalette: CosmeticPalette = paletteFor({
     sign: "sign-classic",
     shelf: "shelf-verde",
@@ -111,6 +125,8 @@ export class Game {
     this.juiceEl = document.getElementById("juice");
     this.registerPopEl = document.getElementById("register-pop");
     this.tipEl = document.getElementById("first-tip");
+    this.countdownEl = document.getElementById("countdown");
+    this.handIcon = document.getElementById("hud-hand-icon") as HTMLCanvasElement | null;
     this.daily = loadDailyMeta();
     const shop = document.getElementById("hud-shop");
     if (shop) shop.textContent = GAME_TITLE;
@@ -245,6 +261,7 @@ export class Game {
       /* ok */
     }
     this.ui.pause(this.save.muted, "visibility");
+    this.hideCountdown();
     this.syncChrome();
   }
 
@@ -319,6 +336,7 @@ export class Game {
   private onDown(e: PointerEvent): void {
     if (this.view !== "play" || !this.run || !this.layout) return;
     if (this.run.tutorial || this.run.over || this.run.awaitingSummary) return;
+    if (this.countdown > 0) return;
     if (e.button === 2) {
       this.drop();
       return;
@@ -509,7 +527,8 @@ export class Game {
   }
 
   private onKey(e: KeyboardEvent): void {
-    const playing = this.view === "play" && this.run && !this.run.tutorial && !this.run.awaitingSummary;
+    const playing =
+      this.view === "play" && this.run && !this.run.tutorial && !this.run.awaitingSummary && this.countdown <= 0;
     const gameKey =
       e.code === "Space" ||
       e.code === "Enter" ||
@@ -708,6 +727,7 @@ export class Game {
 
   private showTurnSummary(summary: import("./sim").TurnSummary): void {
     this.clearDrag();
+    this.dismissFirstTip();
     this.view = "summary";
     this.audio.setPressure(0);
     this.audio.hushBed();
@@ -732,13 +752,106 @@ export class Game {
     this.audio.unhushBed();
     this.playGuard(180, 400);
     document.getElementById("btn-speed")?.blur();
+    this.clockWarned = false;
+    this.lastClockSec = -1;
+    this.startCountdown(this.run && this.run.turno >= 4 ? "Hora extra!" : `Turno ${this.run?.turno ?? 2}!`);
+  }
+
+  /** Wave4: 3·2·1 grande no meio da tela; a fila só anda depois do "Abriu!". */
+  private startCountdown(go: string): void {
+    this.countdown = 1.8;
+    this.countdownGo = go;
+    this.countdownShown = "";
+    this.clearDrag();
+    this.showCountdownText("3", false);
+  }
+
+  private stepCountdown(dt: number): void {
+    this.countdown -= dt;
+    if (this.countdown <= 0) {
+      this.countdown = 0;
+      this.showCountdownText(this.countdownGo, true);
+      return;
+    }
+    const n = String(Math.min(3, Math.ceil(this.countdown / 0.6)));
+    this.showCountdownText(n, false);
+  }
+
+  private showCountdownText(text: string, final: boolean): void {
+    const el = this.countdownEl;
+    if (text === this.countdownShown) return;
+    this.countdownShown = text;
+    this.audio.countTick(final);
+    this.buzz(final ? [20, 40, 30] : 12);
+    if (!el) return;
+    window.clearTimeout(this.countdownHideTimer);
+    el.textContent = text;
+    el.classList.toggle("cd-go", final);
+    el.classList.remove("cd-pop");
+    el.hidden = false;
+    void el.offsetWidth;
+    el.classList.add("cd-pop");
+    if (final) {
+      this.countdownHideTimer = window.setTimeout(() => this.hideCountdown(), 650);
+    }
+  }
+
+  private hideCountdown(): void {
+    window.clearTimeout(this.countdownHideTimer);
+    if (this.countdownEl) {
+      this.countdownEl.hidden = true;
+      this.countdownEl.classList.remove("cd-pop", "cd-go");
+    }
+  }
+
+  /** Wave4: alarme + vibração + "Vai embora!" quando um cliente entra nos últimos 25% de paciência. */
+  private watchPatience(): void {
+    const run = this.run;
+    if (!run || !this.layout) return;
+    for (const c of run.customers) {
+      if (c.mood !== "wait" || this.warned.has(c.id)) continue;
+      if (c.patience / Math.max(0.001, c.patienceMax) >= 0.25) continue;
+      this.warned.add(c.id);
+      this.audio.warn();
+      this.buzz([40, 60, 40]);
+      const slot = this.layout.slots[c.slot];
+      if (slot) {
+        const x = (slot.x + slot.w / 2) / Math.max(1, this.cssW);
+        const y = (slot.y + slot.h * 0.8) / Math.max(1, this.cssH);
+        floatText(run, x, y, "Vai embora!", "#ff7a5c");
+      }
+    }
+    if (this.warned.size > 64) {
+      const live = new Set(run.customers.map((c) => c.id));
+      for (const id of this.warned) if (!live.has(id)) this.warned.delete(id);
+    }
+  }
+
+  /** Wave4: últimos 10s do turno — aviso único + tique por segundo nos últimos 5s. */
+  private watchClock(): void {
+    const run = this.run;
+    if (!run || run.turno >= 4) return;
+    const left = TURNO_SECS - run.turnoT;
+    if (left <= 10 && left > 0 && !this.clockWarned) {
+      this.clockWarned = true;
+      this.toast("Últimos 10s do turno!", 1200, "warn");
+      this.buzz(25);
+    }
+    const sec = Math.ceil(left);
+    if (left > 0 && sec <= 5 && sec !== this.lastClockSec) {
+      this.lastClockSec = sec;
+      this.audio.clockTick();
+    }
   }
 
   private tick(dt: number): void {
     this.resizeIfNeeded();
     if ((this.view === "play" || this.view === "summary") && this.run) {
       this.ensureLayout();
-      if (this.view === "play" && !this.run.awaitingSummary) {
+      if (this.view === "play" && !this.run.awaitingSummary && this.countdown > 0) {
+        this.stepCountdown(this.lastDt);
+        this.syncHud();
+      } else if (this.view === "play" && !this.run.awaitingSummary) {
         if (this.tipActive && performance.now() >= this.tipDeadline) this.dismissFirstTip();
         const beforeTurno = this.run.turno;
         const events = tick(this.run, dt);
@@ -746,6 +859,8 @@ export class Game {
         for (const ev of events) this.applyEvent(ev);
         if (this.run.over && this.view === "play") this.finish();
         this.selectedId();
+        this.watchPatience();
+        this.watchClock();
         this.syncHud();
         this.syncBanner();
         this.syncMusicPressure();
@@ -936,6 +1051,8 @@ export class Game {
   private showTitle(): void {
     this.view = "title";
     this.run = null;
+    this.countdown = 0;
+    this.hideCountdown();
     this.audio.stopBed();
     document.body.classList.remove("tutor-shelf", "tutor-lookalike", "tutor-speed");
     const spotEl = document.getElementById("tutor-spot");
@@ -960,6 +1077,11 @@ export class Game {
     this.selected = null;
     this.flyers = [];
     this.lastHolding = null;
+    this.warned.clear();
+    this.clockWarned = false;
+    this.lastClockSec = -1;
+    this.countdown = 0;
+    this.hideCountdown();
     this.speedScale = 1;
     this.hitstop = 0;
     this.syncSpeedBtn();
@@ -998,9 +1120,7 @@ export class Game {
     }
     this.view = "play";
     this.beginShift();
-    if (skipped) {
-      this.toast("Tutorial pulado. Bom expediente!", 1400, "ok");
-    }
+    void skipped;
   }
 
   private beginShift(): void {
@@ -1010,20 +1130,20 @@ export class Game {
     this.run.spawnIn = 0.55;
     this.run.hint = null;
     this.run.hintT = 0;
-    this.run.banner = "A loja abriu.";
-    this.run.bannerT = 2;
+    this.run.banner = null;
+    this.run.bannerT = 0;
     this.ui.root.innerHTML = "";
     this.view = "play";
     this.syncChrome();
     this.resize();
     document.getElementById("btn-speed")?.blur();
-    if (!this.maybeShowFirstTip()) {
-      this.toast("Caixa aberto. Bom expediente!", 1100, "ok");
-    }
+    // Wave4: a contagem 3·2·1 + "Abriu!" substitui o toast de caixa aberto.
+    this.maybeShowFirstTip();
     this.audio.shift();
     this.audio.startBed();
     this.audio.setPressure(0);
     this.playGuard(180, 400);
+    this.startCountdown("Abriu!");
   }
 
   private pause(): void {
@@ -1040,6 +1160,7 @@ export class Game {
       /* ok */
     }
     this.ui.pause(this.save.muted, "manual");
+    this.hideCountdown();
     this.syncChrome();
   }
 
@@ -1056,6 +1177,10 @@ export class Game {
     this.audio.unhushBed();
     this.playGuard(180, 400);
     document.getElementById("btn-speed")?.blur();
+    if (this.countdown > 0) {
+      this.countdownShown = "";
+      this.countdown = Math.max(this.countdown, 1.2);
+    }
   }
 
   private finish(): void {
@@ -1299,7 +1424,7 @@ export class Game {
     const lives = document.getElementById("hud-lives");
     const goals = document.getElementById("hud-goals");
     if (score) score.textContent = String(this.run.score);
-    if (turno) turno.textContent = this.run.turno >= 4 ? "Hora extra" : `Turno ${this.run.turno}`;
+    this.syncClock(turno);
     if (lives) lives.textContent = livesGlyph(this.run.lives);
     if (combo) {
       if (this.run.combo >= 2) {
@@ -1332,6 +1457,7 @@ export class Game {
       handName.textContent = holding ? PRODUCT_BY_ID[holding].short : "—";
       hand.classList.toggle("has-item", !!holding);
       hand.classList.toggle("is-empty", !holding);
+      this.paintHandIcon(holding);
       if (holding !== this.lastHolding) {
         if (holding && !prefersReducedMotion()) {
           hand.classList.remove("hand-pop");
@@ -1343,6 +1469,57 @@ export class Game {
     }
     this.syncOrderHud();
     this.syncDailyHud();
+  }
+
+  /** Wave4: barra do relógio do turno sob as vidas; acende nos últimos 10s. */
+  private syncClock(turnoEl: HTMLElement | null): void {
+    const run = this.run;
+    if (!run) return;
+    const clock = document.getElementById("hud-clock");
+    const fill = document.getElementById("hud-clock-fill");
+    if (run.turno >= 4) {
+      if (turnoEl) turnoEl.textContent = "Hora extra";
+      if (clock) clock.hidden = true;
+      return;
+    }
+    const left = Math.max(0, TURNO_SECS - run.turnoT);
+    const late = left <= 10;
+    if (turnoEl) {
+      turnoEl.textContent = late ? `Turno ${run.turno} · ${Math.ceil(left)}s` : `Turno ${run.turno}`;
+      turnoEl.classList.toggle("turno-late", late);
+    }
+    if (clock && fill) {
+      clock.hidden = false;
+      clock.classList.toggle("clock-late", late);
+      fill.style.transform = `scaleX(${(left / TURNO_SECS).toFixed(4)})`;
+    }
+  }
+
+  /** Wave4: desenha o produto que está na mão (mesmo traço da prateleira). */
+  private paintHandIcon(id: ProductId | null): void {
+    const cv = this.handIcon;
+    if (!cv || id === this.handIconId) return;
+    this.handIconId = id;
+    const css = 36;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const px = Math.round(css * dpr);
+    if (cv.width !== px) {
+      cv.width = px;
+      cv.height = px;
+    }
+    const ctx = cv.getContext("2d");
+    if (!ctx) return;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, px, px);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (id) {
+      drawProduct(ctx, id, css / 2, css / 2 + 1, css * 1.15, 0, false);
+    } else {
+      ctx.strokeStyle = "rgba(247, 236, 212, 0.35)";
+      ctx.setLineDash([3, 3]);
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(6, 6, css - 12, css - 12);
+    }
   }
 
   /** Fila/pedido legível no celular: chips com nome + itens do pedido. */

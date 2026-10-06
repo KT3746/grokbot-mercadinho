@@ -217,6 +217,30 @@ export class Sfx {
     this.blip(160, 0.12, "sawtooth", 0.03, 0.06);
   }
 
+  /** Wave4: bip da contagem 3·2·1 (final = acorde de abertura). */
+  countTick(final = false): void {
+    if (final) {
+      this.blip(660, 0.09, "triangle", 0.06);
+      this.blip(880, 0.12, "triangle", 0.06, 0.06);
+      this.blip(1320, 0.16, "sine", 0.045, 0.12);
+      return;
+    }
+    this.blip(520, 0.07, "square", 0.04);
+    this.blip(780, 0.05, "sine", 0.025, 0.02);
+  }
+
+  /** Wave4: alarme curto quando um cliente está prestes a ir embora. */
+  warn(): void {
+    this.blip(988, 0.07, "square", 0.045);
+    this.blip(740, 0.07, "square", 0.045, 0.1);
+    this.blip(988, 0.07, "square", 0.04, 0.2);
+  }
+
+  /** Wave4: tique do relógio nos últimos segundos do turno. */
+  clockTick(): void {
+    this.blip(1500, 0.03, "sine", 0.03);
+  }
+
   click(): void {
     this.blip(820, 0.035, "square", 0.03);
     this.blip(1100, 0.03, "triangle", 0.018, 0.015);
