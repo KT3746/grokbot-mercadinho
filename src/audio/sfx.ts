@@ -241,6 +241,29 @@ export class Sfx {
     this.blip(1500, 0.03, "sine", 0.03);
   }
 
+  /** Wave5: elogio na entrega rápida (Perfeito / Boa). */
+  praise(tier: "perfect" | "good" | "clutch"): void {
+    if (tier === "perfect") {
+      this.blip(880, 0.07, "triangle", 0.055);
+      this.blip(1100, 0.09, "sine", 0.05, 0.05);
+      this.blip(1320, 0.12, "sine", 0.04, 0.1);
+      return;
+    }
+    if (tier === "good") {
+      this.blip(740, 0.06, "triangle", 0.05);
+      this.blip(990, 0.08, "sine", 0.04, 0.045);
+      return;
+    }
+    this.blip(620, 0.05, "square", 0.04);
+    this.blip(820, 0.07, "triangle", 0.035, 0.04);
+  }
+
+  /** Wave5: bip curto quando o item na mão casa com um pedido. */
+  matchPing(): void {
+    this.blip(960, 0.04, "sine", 0.03);
+    this.blip(1280, 0.05, "triangle", 0.022, 0.02);
+  }
+
   click(): void {
     this.blip(820, 0.035, "square", 0.03);
     this.blip(1100, 0.03, "triangle", 0.018, 0.015);

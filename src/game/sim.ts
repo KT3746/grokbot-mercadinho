@@ -59,7 +59,7 @@ export type TurnSummary = {
 export type SimEvent =
   | { type: "spawn"; name: string }
   | { type: "pickup"; id: ProductId }
-  | { type: "deliver"; score: number; combo: number; done: boolean; name: string; customerId: number }
+  | { type: "deliver"; score: number; combo: number; done: boolean; name: string; customerId: number; ratio: number }
   | { type: "wrong"; name: string; mixup?: string }
   | { type: "rage"; name: string }
   | { type: "shift"; turno: number }
@@ -363,7 +363,7 @@ export function tryDeliver(run: Run, customerId: number, at?: { x: number; y: nu
     run.hint = "Isso. Mantém o ritmo.";
     run.hintT = 2.4;
   }
-  return { type: "deliver", score: gain, combo: run.combo, done, name: arch.name, customerId: c.id };
+  return { type: "deliver", score: gain, combo: run.combo, done, name: arch.name, customerId: c.id, ratio };
 }
 
 function burst(run: Run, x: number, y: number, color: string, n: number): void {
