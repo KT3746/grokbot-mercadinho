@@ -99,6 +99,18 @@ export class Game {
   /** Wave4: ícone do item na mão. */
   private handIcon: HTMLCanvasElement | null = null;
   private handIconId: ProductId | null | undefined = undefined;
+  /** Wave5: elogio grande na entrega (Perfeito / Boa / No limite). */
+  private praiseEl: HTMLElement | null = null;
+  private praiseHideTimer = 0;
+  /** Wave5: Y inicial do arrasto (deslizar pra baixo = soltar). */
+  private dragStartY = 0;
+  private dragMoved = false;
+  /** Wave5: último estado de "Certo!" na mão (pra bip único). */
+  private handMatched = false;
+  /** Wave5: já avisou última vida neste expediente. */
+  private lastLifeWarned = false;
+  /** Wave5: pontuação anterior pra detectar punch no HUD. */
+  private lastScoreShown = -1;
   private cosPalette: CosmeticPalette = paletteFor({
     sign: "sign-classic",
     shelf: "shelf-verde",
@@ -126,6 +138,7 @@ export class Game {
     this.registerPopEl = document.getElementById("register-pop");
     this.tipEl = document.getElementById("first-tip");
     this.countdownEl = document.getElementById("countdown");
+    this.praiseEl = document.getElementById("praise");
     this.handIcon = document.getElementById("hud-hand-icon") as HTMLCanvasElement | null;
     this.daily = loadDailyMeta();
     const shop = document.getElementById("hud-shop");
@@ -360,7 +373,10 @@ export class Game {
         this.dismissFirstTip();
         this.dragging = prod;
         this.pointerId = e.pointerId;
+        this.dragStartY = p.y;
+        this.dragMoved = false;
         this.ghost = { x: p.x, y: p.y, id: prod };
+        this.buzz(10);
         try {
           this.canvas.setPointerCapture(e.pointerId);
         } catch {
@@ -390,6 +406,9 @@ export class Game {
   private onMove(e: PointerEvent): void {
     if (this.view !== "play" || !this.dragging || e.pointerId !== this.pointerId) return;
     const p = this.pos(e);
+    if (Math.abs(p.y - this.dragStartY) > 12 || (this.ghost && Math.hypot(p.x - this.ghost.x, p.y - this.ghost.y) > 12)) {
+      this.dragMoved = true;
+    }
     if (this.ghost) {
       this.ghost.x = p.x;
       this.ghost.y = p.y;
@@ -411,7 +430,15 @@ export class Game {
     if (this.dragging && e.pointerId === this.pointerId) {
       const p = this.pos(e);
       const cust = hitCustomer(this.layout, this.run, p.x, p.y);
-      if (cust != null) this.deliver(cust, p);
+      if (cust != null) {
+        this.deliver(cust, p);
+      } else if (this.dragMoved && p.y - this.dragStartY >= 72 && this.run.holding) {
+        // Wave5: deslizar o produto pra baixo solta (gesto de polegar no celular).
+        this.drop();
+        this.audio.click();
+        this.buzz(14);
+        this.toast("Soltou.", 700, "info");
+      }
     }
     this.clearDrag();
   }
@@ -421,6 +448,8 @@ export class Game {
     this.dragging = null;
     this.pointerId = null;
     this.ghost = null;
+    this.dragMoved = false;
+    this.dragStartY = 0;
     if (this.run) this.run.lockQueue = false;
   }
 
@@ -671,6 +700,8 @@ export class Game {
         this.flashCombo();
         this.flashJuice(ev.combo >= 3 ? "combo" : "serve");
         this.popRegister(ev.score, ev.combo);
+        this.punchScore();
+        this.popPraise(ev.ratio, at);
         this.dismissFirstTip();
         if (ev.combo === 3 || ev.combo === 5 || ev.combo === 8) {
           this.toast(`Combo ×${ev.combo}!`, 900, "ok");
@@ -699,11 +730,12 @@ export class Game {
       case "rage":
         this.audio.slam();
         this.toast(
-          `${ev.name} foi embora — você perdeu uma vida. Restam ${Math.max(0, this.run.lives)}.`,
+          `${ev.name} foi embora: você perdeu uma vida. Restam ${Math.max(0, this.run.lives)}.`,
           1400,
           "bad",
         );
         this.flashLifeLost();
+        this.maybeWarnLastLife();
         break;
       case "shift":
         this.audio.shift();
@@ -1082,6 +1114,10 @@ export class Game {
     this.lastClockSec = -1;
     this.countdown = 0;
     this.hideCountdown();
+    this.handMatched = false;
+    this.lastLifeWarned = false;
+    this.lastScoreShown = -1;
+    this.hidePraise();
     this.speedScale = 1;
     this.hitstop = 0;
     this.syncSpeedBtn();
@@ -1423,9 +1459,19 @@ export class Game {
     const turno = document.getElementById("hud-turno");
     const lives = document.getElementById("hud-lives");
     const goals = document.getElementById("hud-goals");
-    if (score) score.textContent = String(this.run.score);
+    if (score) {
+      const next = this.run.score;
+      score.textContent = String(next);
+      if (this.lastScoreShown >= 0 && next > this.lastScoreShown) {
+        /* punch disparado em applyEvent; só sincroniza o valor aqui */
+      }
+      this.lastScoreShown = next;
+    }
     this.syncClock(turno);
-    if (lives) lives.textContent = livesGlyph(this.run.lives);
+    if (lives) {
+      lives.textContent = livesGlyph(this.run.lives);
+      lives.classList.toggle("lives-danger", this.run.lives === 1);
+    }
     if (combo) {
       if (this.run.combo >= 2) {
         combo.hidden = false;
@@ -1454,7 +1500,7 @@ export class Game {
     if (hand && handName) {
       hand.hidden = false;
       const holding = this.run.holding;
-      handName.textContent = holding ? PRODUCT_BY_ID[holding].short : "—";
+      handName.textContent = holding ? PRODUCT_BY_ID[holding].short : "-";
       hand.classList.toggle("has-item", !!holding);
       hand.classList.toggle("is-empty", !holding);
       this.paintHandIcon(holding);
@@ -1466,6 +1512,7 @@ export class Game {
         }
         this.lastHolding = holding;
       }
+      this.syncHandMatch(hand, holding);
     }
     this.syncOrderHud();
     this.syncDailyHud();
@@ -1557,6 +1604,86 @@ export class Game {
     el.hidden = false;
     el.classList.toggle("daily-hit", scoreOk || servedOk);
     el.textContent = `Meta ${this.run.score}/${soft.scoreGoal} · ${this.run.served}/${soft.servedGoal} cli`;
+  }
+
+  /** Wave5: "Certo!" no HUD quando o item na mão casa com algum pedido da fila. */
+  private syncHandMatch(hand: HTMLElement, holding: ProductId | null): void {
+    const tag = document.getElementById("hud-hand-match");
+    const run = this.run;
+    let match = false;
+    if (holding && run) {
+      match = run.customers.some(
+        (c) => (c.mood === "wait" || c.mood === "enter") && c.order[0] === holding,
+      );
+    }
+    hand.classList.toggle("hand-match", match);
+    if (tag) tag.hidden = !match;
+    if (match && !this.handMatched) {
+      this.audio.matchPing();
+      this.buzz(8);
+    }
+    this.handMatched = match;
+  }
+
+  /** Wave5: elogio grande conforme a paciência restante na entrega. */
+  private popPraise(ratio: number, at?: { x: number; y: number }): void {
+    if (!this.run) return;
+    let label: string;
+    let tier: "perfect" | "good" | "clutch";
+    let color: string;
+    if (ratio >= 0.72) {
+      label = "Perfeito!";
+      tier = "perfect";
+      color = "#ffe7a0";
+    } else if (ratio >= 0.38) {
+      label = "Boa!";
+      tier = "good";
+      color = "#7dff9a";
+    } else {
+      label = "No limite!";
+      tier = "clutch";
+      color = "#ffb14a";
+    }
+    this.audio.praise(tier);
+    if (tier === "perfect") this.buzz([10, 24, 14]);
+    let x = 0.5;
+    let y = 0.2;
+    if (at) {
+      x = at.x / Math.max(1, this.cssW);
+      y = Math.max(0.1, at.y / Math.max(1, this.cssH) - 0.08);
+    }
+    floatText(this.run, x, y - 0.02, label, color);
+    if (!this.praiseEl || prefersReducedMotion()) return;
+    window.clearTimeout(this.praiseHideTimer);
+    this.praiseEl.textContent = label;
+    this.praiseEl.className = tier === "perfect" ? "praise-perfect" : tier === "good" ? "praise-good" : "praise-clutch";
+    this.praiseEl.classList.add("praise-pop");
+    this.praiseEl.hidden = false;
+    this.praiseHideTimer = window.setTimeout(() => this.hidePraise(), tier === "perfect" ? 720 : 560);
+  }
+
+  private hidePraise(): void {
+    if (!this.praiseEl) return;
+    this.praiseEl.hidden = true;
+    this.praiseEl.classList.remove("praise-pop", "praise-perfect", "praise-good", "praise-clutch");
+  }
+
+  /** Wave5: pontuação do HUD dá um pulinho a cada entrega. */
+  private punchScore(): void {
+    const score = document.getElementById("hud-score");
+    if (!score || prefersReducedMotion()) return;
+    score.classList.remove("score-punch");
+    void score.offsetWidth;
+    score.classList.add("score-punch");
+  }
+
+  /** Wave5: aviso único quando sobra 1 vida. */
+  private maybeWarnLastLife(): void {
+    if (!this.run || this.run.lives !== 1 || this.lastLifeWarned) return;
+    this.lastLifeWarned = true;
+    this.toast("Última vida! Cuidado com a fila.", 1600, "warn");
+    this.buzz([20, 40, 20, 40, 35]);
+    this.audio.warn();
   }
 
   private flashCombo(): void {

@@ -2,7 +2,7 @@
 
 Atenda o **MERCADINHO** antes da paciência da fila acabar. Jogo **original** no navegador — nenhuma marca real, mascote emprestado ou IP de terceiros.
 
-**Jogar agora:** [https://kt3746.github.io/grokbot-mercadinho/?v=202610060515](https://kt3746.github.io/grokbot-mercadinho/?v=202610060515)
+**Jogar agora:** [https://kt3746.github.io/grokbot-mercadinho/?v=202610070420](https://kt3746.github.io/grokbot-mercadinho/?v=202610070420)
 
 ## Como jogar
 
@@ -41,12 +41,16 @@ O jogo detecta celular e computador. No telefone, só o dedo. No desktop, mouse 
 | Pausar | Esc (mão vazia) ou o botão **Pausa** |
 | Som | M |
 
-## Novidades (onda 4)
+## Novidades (onda 5)
 
-- **Contagem 3·2·1** grande antes de abrir o caixa e a cada turno novo; a fila só anda depois do **Abriu!**.
-- **Relógio do turno** sob as vidas: barra verde que esvazia, fica laranja e mostra os segundos nos últimos 10s (com aviso e tique).
-- **Na mão com ícone**: o HUD desenha o produto que você está segurando, não só o nome.
-- **Alerta de "Vai embora!"**: quando um cliente entra nos últimos 25% de paciência, toca um alarme curto, o celular vibra e aparece o aviso em cima dele.
+- **Elogio na entrega**: **Perfeito!**, **Boa!** ou **No limite!** conforme a paciência do cliente (texto grande + som + vibração).
+- **Certo! na mão**: se o item que você pegou casa com algum pedido da fila, o HUD fica verde e mostra **Certo!** (bip curto).
+- **Pontos pulam no HUD** a cada entrega; com **1 vida** as vidas pulsam e aparece o aviso **Última vida!**.
+- **Deslizar pra baixo solta** o produto (gesto de polegar no celular), além do toque vazio / botão Soltar.
+
+## Onda 4 (já no ar)
+
+- Contagem 3·2·1, relógio do turno, ícone na mão, alerta Vai embora!.
 
 ## O que vai acontecendo
 
@@ -79,7 +83,7 @@ npm run preview
 
 O workflow em `.github/workflows/deploy.yml` gera o site e publica no GitHub Pages a cada push em `main`. Assets saem com hash no nome; o `index.html` leva um `build-id` e `dist/version.txt` com o commit — isso evita ficar preso numa versão antiga no cache.
 
-Pages já está em **GitHub Actions**. Depois do merge em `main`, o endereço é [https://kt3746.github.io/grokbot-mercadinho/](https://kt3746.github.io/grokbot-mercadinho/). Se o navegador mostrar a versão antiga, abra com `?v=` + o SHA do commit (está em `dist/version.txt` e no meta `build-id` da página), por exemplo `https://kt3746.github.io/grokbot-mercadinho/?v=202610060515`.
+Pages já está em **GitHub Actions**. Depois do merge em `main`, o endereço é [https://kt3746.github.io/grokbot-mercadinho/](https://kt3746.github.io/grokbot-mercadinho/). Se o navegador mostrar a versão antiga, abra com `?v=` + o SHA do commit (está em `dist/version.txt` e no meta `build-id` da página), por exemplo `https://kt3746.github.io/grokbot-mercadinho/?v=202610070420`.
 
 ## Licença
 
