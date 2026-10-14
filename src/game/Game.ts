@@ -117,6 +117,8 @@ export class Game {
     badge: "badge-padrao",
   });
 
+  private recordCelebrated = false;
+
   constructor(canvas: HTMLCanvasElement, uiRoot: HTMLElement) {
     const glCanvas = document.getElementById("scene3d") as HTMLCanvasElement | null;
     const webglOk = glCanvas ? this.scene3d.init(glCanvas) : false;
@@ -702,6 +704,8 @@ export class Game {
         this.popRegister(ev.score, ev.combo);
         this.punchScore();
         this.popPraise(ev.ratio, at);
+        this.coinsToScore(at, ev.combo);
+        this.checkLiveRecord();
         this.dismissFirstTip();
         if (ev.combo === 3 || ev.combo === 5 || ev.combo === 8) {
           this.toast(`Combo ×${ev.combo}!`, 900, "ok");
@@ -767,6 +771,7 @@ export class Game {
     this.toastEl.hidden = true;
     this.toastEl.replaceChildren();
     this.ui.turnSummary(summary);
+    this.revealStars(summary.stars);
     this.syncChrome();
     this.audio.shift();
   }
@@ -1106,6 +1111,7 @@ export class Game {
 
   private play(): void {
     this.run = createRun();
+    this.recordCelebrated = false;
     this.selected = null;
     this.flyers = [];
     this.lastHolding = null;
@@ -1354,6 +1360,94 @@ export class Game {
 
 
   /** Pressão sonora: rush/caos + paciência baixa na fila. */
+  /** Onda 6: passou o recorde no meio do turno = festa na hora. */
+  private checkLiveRecord(): void {
+    if (!this.run || this.recordCelebrated || this.run.tutorial) return;
+    const best = this.save.best || 0;
+    if (best <= 0 || this.run.score <= best) return;
+    this.recordCelebrated = true;
+    this.toast("NOVO RECORDE! Continua assim!", 1600, "ok");
+    this.buzz([15, 40, 15, 40, 30]);
+    const score = document.getElementById("hud-score");
+    score?.classList.add("live-record");
+    if (prefersReducedMotion()) return;
+    const colors = ["#e3b23c", "#7dff9a", "#ff7a5c", "#6fd3ff", "#ffffff"];
+    for (let i = 0; i < 46; i++) {
+      const c = document.createElement("i");
+      c.className = "confetti-bit";
+      c.style.background = colors[i % colors.length];
+      c.style.left = `${10 + Math.random() * 80}%`;
+      document.body.appendChild(c);
+      const dx = (Math.random() - 0.5) * 160;
+      c.animate(
+        [
+          { transform: "translateY(-20px) rotate(0)", opacity: 1 },
+          { transform: `translate(${dx}px, ${window.innerHeight * (0.6 + Math.random() * 0.4)}px) rotate(${Math.random() * 720}deg)`, opacity: 0 },
+        ],
+        { duration: 1300 + Math.random() * 700, easing: "cubic-bezier(.2,.6,.4,1)", delay: Math.random() * 200 },
+      ).onfinish = () => c.remove();
+    }
+  }
+
+  /** Onda 6: moedinhas voam do cliente até o placar. */
+  private coinsToScore(at: { x: number; y: number } | undefined, combo: number): void {
+    if (prefersReducedMotion()) return;
+    const target = document.getElementById("hud-score");
+    if (!target) return;
+    const cr = this.canvas.getBoundingClientRect();
+    const sx = cr.left + (at ? at.x : cr.width / 2);
+    const sy = cr.top + (at ? at.y : cr.height / 2);
+    const tr = target.getBoundingClientRect();
+    const tx = tr.left + tr.width / 2;
+    const ty = tr.top + tr.height / 2;
+    const n = Math.min(9, 3 + combo);
+    for (let i = 0; i < n; i++) {
+      const c = document.createElement("div");
+      c.className = "fly-coin";
+      c.textContent = "$";
+      c.style.left = `${sx}px`;
+      c.style.top = `${sy}px`;
+      document.body.appendChild(c);
+      const mx = (Math.random() - 0.5) * 110;
+      const my = -40 - Math.random() * 70;
+      const anim = c.animate(
+        [
+          { transform: "translate(-50%,-50%) scale(.4)", opacity: 0 },
+          { transform: `translate(calc(-50% + ${mx}px), calc(-50% + ${my}px)) scale(1.1)`, opacity: 1, offset: 0.35 },
+          { transform: `translate(calc(-50% + ${tx - sx}px), calc(-50% + ${ty - sy}px)) scale(.55)`, opacity: 0.9 },
+        ],
+        { duration: 620 + i * 45, easing: "cubic-bezier(.3,.6,.4,1)", delay: i * 25, fill: "forwards" },
+      );
+      anim.onfinish = () => {
+        c.remove();
+        if (i === n - 1) {
+          target.classList.remove("coin-hit");
+          void target.offsetWidth;
+          target.classList.add("coin-hit");
+        }
+      };
+    }
+  }
+
+  /** Onda 6: estrelas do fim de turno acendem uma a uma, com som e vibração. */
+  private revealStars(stars: number): void {
+    const line = this.ui.root.querySelector(".stars-line") as HTMLElement | null;
+    if (!line) return;
+    line.innerHTML = [0, 1, 2]
+      .map((i) => `<span class="star-slot${i < stars ? " earn" : ""}" style="--i:${i}">${i < stars ? "★" : "☆"}</span>`)
+      .join("");
+    for (let i = 0; i < stars; i++) {
+      window.setTimeout(() => {
+        try {
+          this.audio.cash();
+        } catch {
+          /* ok */
+        }
+        this.buzz(14 + i * 8);
+      }, 260 + i * 320);
+    }
+  }
+
   private syncMusicPressure(): void {
     const run = this.run;
     if (!run || this.view !== "play") {
