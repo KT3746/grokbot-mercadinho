@@ -2041,3 +2041,17 @@ body.tutor-lookalike #scene::after {
     opacity: 1;
   }
 }
+
+/* Onda 6: moedas voando, recorde ao vivo, estrelas do turno */
+.fly-coin { position: fixed; z-index: 80; pointer-events: none; width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center; font: 800 13px/1 Nunito, sans-serif; color: #6b4a00;
+  background: radial-gradient(circle at 35% 30%, #fff4c2, #f3c94a 45%, #c8901a); box-shadow: 0 0 10px rgba(243,201,74,.7), inset 0 -2px 0 rgba(0,0,0,.18); }
+#hud-score.coin-hit { animation: coin-hit .28s ease-out; }
+@keyframes coin-hit { 50% { transform: scale(1.18); filter: brightness(1.5); } }
+#hud-score.live-record { color: #ffd76a; text-shadow: 0 0 12px rgba(255,215,106,.75); }
+.confetti-bit { position: fixed; top: 0; z-index: 85; width: 9px; height: 13px; border-radius: 2px; pointer-events: none; }
+.stars-line .star-slot { display: inline-block; opacity: .35; transform: scale(.8); }
+.stars-line .star-slot.earn { color: #f3c94a; opacity: 0; text-shadow: 0 0 14px rgba(243,201,74,.8);
+  animation: star-in .45s cubic-bezier(.2,1.6,.4,1) forwards; animation-delay: calc(.26s + var(--i) * .32s); }
+@keyframes star-in { 0% { opacity: 0; transform: scale(2.4) rotate(-30deg); } 100% { opacity: 1; transform: scale(1) rotate(0); } }
+@media (prefers-reduced-motion: reduce) { .stars-line .star-slot.earn { animation: none; opacity: 1; transform: none; } }
