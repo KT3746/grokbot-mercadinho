@@ -571,9 +571,10 @@ export class Scene3D {
     if (this.signGroup && mid) {
       this.signGroup.position.set(mid.x, 3.1, mid.z);
     }
+    if (this.signGroup) this.signGroup.visible = true;
   }
 
-  private layoutMenu(_cssW: number, _cssH: number): void {
+  private layoutMenu(cssW: number, cssH: number): void {
     if (this.shelfBody) this.shelfBody.position.set(0, 0.7, 3.2);
     if (this.shelfBody) this.shelfBody.scale.set(7.2, 1.35, 2.2);
     if (this.shelfWell) {
@@ -584,7 +585,13 @@ export class Scene3D {
       this.counter.position.set(0, 0.48, -0.8);
       this.counter.scale.set(6.5, 0.95, 0.9);
     }
-    if (this.signGroup) this.signGroup.position.set(0, 4.55, -6.05);
+    if (this.signGroup) {
+      this.signGroup.position.set(0, 4.55, -6.05);
+      // Tela em pé (celular): o letreiro cai bem atrás do título MERCADINHO
+      // e a moldura marrom/dourada embola o texto. No menu em retrato, some.
+      const aspect = Math.max(1, cssW) / Math.max(1, cssH);
+      this.signGroup.visible = aspect >= 1.2;
+    }
   }
 
   private syncProducts(run: Run, layout: PlayLayout): void {
