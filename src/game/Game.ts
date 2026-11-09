@@ -109,6 +109,8 @@ export class Game {
   private handMatched = false;
   /** Wave5: já avisou última vida neste expediente. */
   private lastLifeWarned = false;
+  /** Onda 7: Perfeitos seguidos na entrega. */
+  private perfectStreak = 0;
   /** Wave5: pontuação anterior pra detectar punch no HUD. */
   private lastScoreShown = -1;
   private cosPalette: CosmeticPalette = paletteFor({
@@ -351,7 +353,10 @@ export class Game {
   private onDown(e: PointerEvent): void {
     if (this.view !== "play" || !this.run || !this.layout) return;
     if (this.run.tutorial || this.run.over || this.run.awaitingSummary) return;
-    if (this.countdown > 0) return;
+    if (this.countdown > 0) {
+      this.skipCountdown();
+      return;
+    }
     if (e.button === 2) {
       this.drop();
       return;
@@ -558,6 +563,11 @@ export class Game {
   }
 
   private onKey(e: KeyboardEvent): void {
+    if (this.countdown > 0 && (e.code === "Space" || e.code === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      this.skipCountdown();
+      return;
+    }
     const playing =
       this.view === "play" && this.run && !this.run.tutorial && !this.run.awaitingSummary && this.countdown <= 0;
     const gameKey =
@@ -713,6 +723,7 @@ export class Game {
         break;
       }
       case "wrong": {
+        this.perfectStreak = 0;
         this.audio.wrong();
         this.buzz([30, 40, 45]);
         if (this.run) {
@@ -803,6 +814,14 @@ export class Game {
     this.showCountdownText("3", false);
   }
 
+  /** Onda 7: toque/Espaço/Enter pula a contagem 3·2·1. */
+  private skipCountdown(): void {
+    if (this.countdown <= 0) return;
+    this.countdown = 0;
+    this.countdownShown = "";
+    this.showCountdownText(this.countdownGo, true);
+  }
+
   private stepCountdown(dt: number): void {
     this.countdown -= dt;
     if (this.countdown <= 0) {
@@ -878,6 +897,21 @@ export class Game {
     if (left > 0 && sec <= 5 && sec !== this.lastClockSec) {
       this.lastClockSec = sec;
       this.audio.clockTick();
+      // Onda 7: "Restam N!" bem visível nos últimos 5s
+      if (sec > 0) {
+        this.toast(`Restam ${sec}!`, 700, "warn");
+        if (this.countdownEl && this.countdown <= 0) {
+          window.clearTimeout(this.countdownHideTimer);
+          this.countdownEl.textContent = String(sec);
+          this.countdownEl.classList.remove("cd-go", "cd-pop");
+          this.countdownEl.hidden = false;
+          void this.countdownEl.offsetWidth;
+          this.countdownEl.classList.add("cd-pop");
+          this.countdownHideTimer = window.setTimeout(() => {
+            if (this.countdown <= 0) this.hideCountdown();
+          }, 520);
+        }
+      }
     }
   }
 
@@ -1122,6 +1156,7 @@ export class Game {
     this.hideCountdown();
     this.handMatched = false;
     this.lastLifeWarned = false;
+    this.perfectStreak = 0;
     this.lastScoreShown = -1;
     this.hidePraise();
     this.speedScale = 1;
@@ -1737,6 +1772,16 @@ export class Game {
       label = "No limite!";
       tier = "clutch";
       color = "#ffb14a";
+    }
+    // Onda 7: sequência de Perfeitos
+    if (tier === "perfect") {
+      this.perfectStreak += 1;
+      if (this.perfectStreak === 3 || this.perfectStreak === 5) {
+        this.toast(`${this.perfectStreak} Perfeitos seguidos!`, 1100, "ok");
+        this.buzz([12, 28, 12, 28, 18]);
+      }
+    } else {
+      this.perfectStreak = 0;
     }
     this.audio.praise(tier);
     if (tier === "perfect") this.buzz([10, 24, 14]);
