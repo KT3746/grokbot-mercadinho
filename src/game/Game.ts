@@ -1616,9 +1616,10 @@ export class Game {
       const bits = this.run.goals
         .map((g) => {
           const mark = g.met ? "★" : "☆";
-          if (g.kind === "serve") return `${mark}${g.current}/${g.target}`;
-          if (g.kind === "combo") return `${mark}×${Math.max(g.current, 0)}`;
-          return `${mark}${g.met ? "ok" : "vida"}`;
+          /* Onda 8: metas legíveis (antes: "☆1/2 · ☆×1 · ★ok") */
+          if (g.kind === "serve") return `${mark} ${Math.min(g.current, g.target)}/${g.target} cli`;
+          if (g.kind === "combo") return `${mark} combo ${Math.min(Math.max(g.current, 0), g.target)}/${g.target}`;
+          return `${mark} ${this.run && this.run.turno <= 2 ? "vida" : "sem fúria"}`;
         })
         .join(" · ");
       goals.hidden = false;

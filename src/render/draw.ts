@@ -579,9 +579,11 @@ function drawCustomer(
   const nameLabel = c.special ? `${arch.name} ★` : arch.name;
   ctx.fillText(urgent ? `! ${nameLabel}` : nameLabel, slot.x + slot.w / 2 + ox, barY + 26, slot.w - 8);
 
-  const bubbleW = slot.w - 8;
+  /* Onda 8: em vaga larga (1 cliente no retrato) o pedido vira um cartão ao lado, sem tapar o rosto. */
+  const wideSlot = slot.w > 240;
+  const bubbleW = wideSlot ? Math.min(slot.w * 0.4, 70 + c.order.length * 52) : slot.w - 8;
   const bubbleH = Math.min(88, Math.max(58, slot.h * 0.4));
-  const bx = slot.x + 4 + ox;
+  const bx = wideSlot ? slot.x + slot.w - bubbleW - 6 + ox : slot.x + 4 + ox;
   const by = slot.y + 32 + oy;
   // Urgência no pedido: borda do balão lê em ~1s (verde → amarelo → vermelho).
   const urg =
@@ -632,7 +634,8 @@ function drawCustomer(
   }
   // Balão de fala curto (PT-BR) — ocasional, não polui o pedido.
   if (c.phraseT > 0 && c.phrase) {
-    drawSpeechBubble(ctx, c.phrase, slot.x + slot.w / 2 + ox, Math.max(slot.y + 4 + oy, barY - 4), slot.w - 6, c.mood);
+    if (wideSlot) drawSpeechBubble(ctx, c.phrase, slot.x + Math.min(slot.w * 0.26, 110) + ox, by + bubbleH, Math.min(slot.w * 0.5, 190), c.mood);
+    else drawSpeechBubble(ctx, c.phrase, slot.x + slot.w / 2 + ox, Math.max(slot.y + 4 + oy, barY - 4), slot.w - 6, c.mood);
   }
 }
 

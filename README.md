@@ -2,7 +2,7 @@
 
 Atenda o **MERCADINHO** antes da paciência da fila acabar. Jogo **original** no navegador — nenhuma marca real, mascote emprestado ou IP de terceiros.
 
-**Jogar agora:** [https://kt3746.github.io/grokbot-mercadinho/?v=202611091244](https://kt3746.github.io/grokbot-mercadinho/?v=202611091244)
+**Jogar agora:** [https://kt3746.github.io/grokbot-mercadinho/?v=202611130015](https://kt3746.github.io/grokbot-mercadinho/?v=202611130015)
 
 ## Como jogar
 
@@ -40,6 +40,12 @@ O jogo detecta celular e computador. No telefone, só o dedo. No desktop, mouse 
 | Soltar item | Esc (se a mão estiver ocupada), `X`, botão direito, ou **Soltar** no HUD |
 | Pausar | Esc (mão vazia) ou o botão **Pausa** |
 | Som | M |
+
+## Novidades (onda 8)
+
+- **Cliente de corpo inteiro no celular**: a fila ficou mais alta e, com um cliente só, o pedido vira um cartão ao lado (antes o balão tapava a pessoa). A fala do cliente não some mais atrás do placar.
+- **Combo justo**: o combo só esfria enquanto tem alguém esperando. No turno 1 (um cliente por vez) a meta "combo ×2" agora dá pra bater.
+- **Metas legíveis no placar**: "★ 2/2 cli · ☆ combo 1/2 · ★ vida" no lugar de "☆1/2 · ☆×1 · ★ok".
 
 ## Novidades (onda 7)
 
@@ -89,7 +95,7 @@ npm run preview
 
 O workflow em `.github/workflows/deploy.yml` gera o site e publica no GitHub Pages a cada push em `main`. Assets saem com hash no nome; o `index.html` leva um `build-id` e `dist/version.txt` com o commit — isso evita ficar preso numa versão antiga no cache.
 
-Pages já está em **GitHub Actions**. Depois do merge em `main`, o endereço é [https://kt3746.github.io/grokbot-mercadinho/](https://kt3746.github.io/grokbot-mercadinho/). Se o navegador mostrar a versão antiga, abra com `?v=` + o SHA do commit (está em `dist/version.txt` e no meta `build-id` da página), por exemplo `https://kt3746.github.io/grokbot-mercadinho/?v=202611091244`.
+Pages já está em **GitHub Actions**. Depois do merge em `main`, o endereço é [https://kt3746.github.io/grokbot-mercadinho/](https://kt3746.github.io/grokbot-mercadinho/). Se o navegador mostrar a versão antiga, abra com `?v=` + o SHA do commit (está em `dist/version.txt` e no meta `build-id` da página), por exemplo `https://kt3746.github.io/grokbot-mercadinho/?v=202611130015`.
 
 ## Licença
 

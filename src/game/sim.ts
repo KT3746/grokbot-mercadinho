@@ -484,7 +484,9 @@ export function tick(run: Run, dt: number): SimEvent[] {
   run.turnoT += simDt;
   run.shake = Math.max(0, run.shake - dt * 28);
   run.punch = Math.max(0, run.punch - dt);
-  if (run.comboT > 0) {
+  /* Onda 8: o combo só esfria com alguém esperando — loja vazia não quebra sequência (no turno 1 era impossível bater "combo ×2"). */
+  const someoneWaiting = run.customers.some((c) => (c.mood === "wait" || c.mood === "enter") && c.order.length > 0);
+  if (run.comboT > 0 && someoneWaiting) {
     run.comboT -= dt;
     if (run.comboT <= 0) run.combo = 0;
   }
