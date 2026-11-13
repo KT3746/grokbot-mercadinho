@@ -84,7 +84,8 @@ export function computeLayout(w: number, h: number, turno: number, slotCount: nu
   }
 
   // Retrato / celular: fila compacta no topo, prateleira ocupa o resto (sem balcão).
-  const queueH = Math.min(168, Math.max(110, h * 0.22));
+  /* Onda 8: fila mais alta no celular — o cliente aparece de corpo inteiro (antes o balão cobria a pessoa). */
+  const queueH = h >= 740 ? Math.min(250, h * 0.29) : Math.min(196, Math.max(110, h * 0.25));
   const queue: Rect = { x: 8, y: hudH + safeT, w: w - 16, h: queueH };
   const gap = 8;
   // Mais folga inferior no celular — grade densa (turno 2+) não cola na borda.
